@@ -15,8 +15,8 @@ else ifeq ($(UNAME_SYS), Linux)
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 endif
 
-$(C_SRC_OUTPUT): *.c 
-	$(CC) $(CFLAGS) *.c -fPIC -shared -o $(C_SRC_OUTPUT) -I $(ERTS_INCLUDE_DIR) \
+$(C_SRC_OUTPUT): *.c
+	$(CC) $(CFLAGS) *.c -g -fPIC -shared -o $(C_SRC_OUTPUT) -I $(ERTS_INCLUDE_DIR) \
 		$(C_SRC_OPTS) -L/usr/lib -l:libcblas.so.3 -l:libatlas.so.3
 
 

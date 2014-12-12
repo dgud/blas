@@ -3,14 +3,46 @@
 %%% @copyright (C) 2014, Dan Gudmundsson
 %%% @doc  A wrapper for the standard BLAS Basic Linnear Algebra
 %%%
-%%%       Most of these functions use desctructive operations on the supplied vectors.
+%%%   These functions are the 1 to 1 mapping to standard BLAS.  Most
+%%%   of these functions use destructive operations on the supplied
+%%%   containers. They are thus not generally "thread" safe to use so
+%%%   beware. Parallellings this in erlang is not a good idea.  Use a
+%%%   library that do that in the layer below. Copies of data can of
+%%%   course be sent to other process and worked in parallell.
 %%%
-%%% @end
-%%% Created :  9 Dec 2014 by Dan Gudmundsson <dgud@erlang.org>
-%%%-------------------------------------------------------------------
+%%%   Containers are created, read and updated by the provided api in
+%%%   this module. Indecies are zero based. And should work well
+%%%   together with the 'array' api.
+%%%
+%%%   For all Containers an extra arg called 'Start?' is added to be able
+%%%   to tell where the Containers starts, in 'C' you would normally just
+%%%   step the pointer.
+%%%
+%%%   The library does not handle if the same container is supplied more
+%%%   than once as arguments to the same function. The exception is
+%%%   when using interleaved vectors, as in V1=[x1,y1,x2,y2,...xn,yn].
+%%%   Then it is safe to use StartX=0, IncX=2, StartY=1, IncY=2 and
+%%%   re-use the same container as two arguments.
+%%%
+%%%   Functions which have a matrix as arguments also have an IncM
+%%%   argument, which corresponds to LDA in the original API and works
+%%%   as it does in the cblas implementations. Thus for a 'row_major'
+%%%   matrix MxN it tells how many elements there are in each row, i.e.
+%%%   at least N elements.
+%%%
+%%% @end Created : 9 Dec 2014 by Dan Gudmundsson
+%%%   <dgud@erlang.org>
+%%%   -------------------------------------------------------------------
 -module(blasd).
 
--export([from_list/1, to_list/1, to_tuple_list/2, vec_size/1]).
+%% Data handling
+-export([from_list/1,
+	 to_list/1, to_tuple_list/2,
+	 cont_size/1,
+	 value/2, values/2, values/3,
+	 update/2, update/3
+	]).
+
 %% Level 1
 -export([ %% Level 1
 	  rotg/2,
@@ -40,8 +72,8 @@
 	  syr2k/7, syr2k/13
 	]).
 
--opaque(vec).
--type vec() :: binary().
+-opaque(cont).
+-type cont() :: binary(). %% A data container can be a vector or matrix
 -type matrix_op() :: no_transp|transp|conj_transp.
 -type matrix_order() :: row_maj|col_maj.
 -type matrix_uplo()  :: upper|lower.
@@ -55,17 +87,49 @@ nif_stub_error(Line) ->
     erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
 
 %% API Data conversion
--spec from_list(List::[tuple()]|list(float())) -> vec().
+%%
+%% @doc Create a container from a list of values
+-spec from_list(List::[tuple()]|list(float())) -> cont().
 from_list(_List) -> ?nif_stub.
 
--spec to_list(Vec::vec()) -> list(float()).
-to_list(Vec) -> to_tuple_list(1, Vec).
+%% @doc Convert a container to a list of values
+-spec to_list(Cont::cont()) -> list(float()).
+to_list(Cont) ->
+    to_tuple_list_impl(0, cont_size(Cont), 0, Cont).
 
--spec to_tuple_list(Ts::integer(),Vec::vec()) -> list(tuple()).
-to_tuple_list(_TS, _Vec) -> ?nif_stub.
+%% @doc Convert a container to a list of tuples
+-spec to_tuple_list(Ts::integer(),Cont::cont()) -> list(tuple()).
+to_tuple_list(TS, Cont) ->
+    to_tuple_list_impl(0, cont_size(Cont), TS, Cont).
 
--spec vec_size(Vec::vec()) -> N::integer().
-vec_size(_Vec) -> ?nif_stub.
+%% @doc Returns the container size
+-spec cont_size(Cont::cont()) -> N::integer().
+cont_size(_Cont) -> ?nif_stub.
+
+%% @doc Get the value at Idx (zero based)
+-spec value(Idx::integer(), Cont::cont()) -> Value::float().
+value(Idx, Cont) ->
+    to_tuple_list_impl(Idx, 1, 0, Cont).
+
+%% @doc Get N values starting at Idx
+-spec values(Idx::integer, N::integer(), Cont::cont()) -> Vs::tuple().
+values(Idx, N, Cont) ->
+    to_tuple_list_impl(Idx, N, N, Cont).
+
+%% @doc Get values at Indecies
+-spec values(list(Idxs::integer()), Cont::cont()) -> list({Idx::integer(), float()}).
+values(_IdxList, _Cont) -> ?nif_stub.
+
+%% @doc Destructive update value(s) starting at Idx
+-spec update(Idx::integer(),Vs::float() | list(float()), Cont::cont()) -> ok.
+update(_Idx, _Vs, _Cont) -> ?nif_stub.
+
+%% @doc Destructive update values
+-spec update(list({Idx::integer(), Value::float()}), Cont::cont()) -> ok.
+update(_IdxV, _Cont) -> ?nif_stub.
+
+to_tuple_list_impl(_Start, _N, _TupleSize, _Cont) ->
+    ?nif_stub.
 
 %% API LEVEL 1
 
@@ -78,9 +142,9 @@ rotg(_A,_B) -> ?nif_stub.
 
 %% @doc Apply plane rotation on 2D interleaved data
 %%   where Cos and Sin are the angle of rotation
--spec rot(A2D::vec(), Cos::float(), Sin::float()) -> ok.
+-spec rot(A2D::cont(), Cos::float(), Sin::float()) -> ok.
 rot(XY, C, S) ->
-    N = vec_size(XY),
+    N = cont_size(XY),
     rot(N div 2, XY, 0, 2, XY, 1, 2, C, S).
 
 %% @doc Apply plane rotation in vectors
@@ -89,46 +153,48 @@ rot(XY, C, S) ->
 %%   XStart,YStart  Start positions
 %%   XInc, YInc     Increments to next element (1 if not interleaved)
 -spec rot(N::integer(),
-	   X::vec(), XStart::integer(), Xinc::integer(),
-	   Y::vec(), YStart::integer(), Yinc::integer(),
+	   X::cont(), XStart::integer(), Xinc::integer(),
+	   Y::cont(), YStart::integer(), Yinc::integer(),
 	   Cos::float(), Sin::float()) -> ok.
 rot(_N, _X, _XStart, _Xinc, _Y, _YStart, _Yinc, _C, _S) -> ?nif_stub.
 
 %% @doc Scale all values in the vector with Alpha
--spec scal(Alpha::float(), Vec::vec()) -> ok.
+%% Alpha*X=>X
+-spec scal(Alpha::float(), Cont::cont()) -> ok.
 scal(Alpha, X) ->
-    N = vec_size(X),
+    N = cont_size(X),
     scal(N, Alpha, X, 0, 1).
 
 %% @doc Scale values in the vector with Alpha
 %% Start at StartX pos and step Xinc
+%% Alpha*X=>X
 -spec scal(N::integer(), Alpha::float(),
-	   X::vec(), XStart::integer(), Xinc::integer()) -> ok.
+	   X::cont(), XStart::integer(), Xinc::integer()) -> ok.
 scal(N, Alpha, X, XStart, Xinc) ->
     one_vec(N, Alpha, X, XStart, Xinc, 0).
 
-%% @doc Copy all values in the vector
--spec copy(Vec::vec()) -> vec().
+%% @doc Copy all values in a vector to a new vector
+-spec copy(Cont::cont()) -> cont().
 copy(X) ->
-    N = vec_size(X),
+    N = cont_size(X),
     copy(N, X, 0, 1).
 
 %% @doc Copy values in the vector
 %% Start at StartX pos and step Xinc
--spec copy(N::integer(), X::vec(), XStart::integer(), Xinc::integer()) -> vec().
+-spec copy(N::integer(), X::cont(), XStart::integer(), Xinc::integer()) -> cont().
 copy(_N, _X, _XStart, _Xinc) -> ?nif_stub.
 
-%% @doc Compute AX+Y=Y
--spec axpy(A::float(), X::vec(), Y::vec()) -> ok.
-axpy(A, X, Y) ->
-    N = vec_size(X),
-    N =:= vec_size(Y) orelse error(badarg),
-    axpy(N, A, X, 0, 1, Y, 0, 1).
+%% @doc Compute alpha*X+Y=>Y
+-spec axpy(Alpha::float(), X::cont(), Y::cont()) -> ok.
+axpy(Alpha, X, Y) ->
+    N = cont_size(X),
+    N =:= cont_size(Y) orelse error(badarg),
+    axpy(N, Alpha, X, 0, 1, Y, 0, 1).
 
-%% @doc Compute AX+Y=Y
+%% @doc Compute Alpha*X+Y=>Y
 -spec axpy(N::integer(), Alpha::float(),
-	    X::vec(), XStart::integer(), Xinc::integer(),
-	    Y::vec(), YStart::integer(), Yinc::integer()) -> ok.
+	    X::cont(), XStart::integer(), Xinc::integer(),
+	    Y::cont(), YStart::integer(), Yinc::integer()) -> ok.
 axpy(N, A, X, XStart, Xinc, Y, YStart, Yinc) ->
     two_vec(N, A, X, XStart, Xinc, Y, YStart, Yinc, 0).
 
@@ -136,22 +202,22 @@ axpy(N, A, X, XStart, Xinc, Y, YStart, Yinc) ->
 %% Given two vectors x and y, the swap routines return vectors y
 %% and x swapped, each replacing the other.
 -spec swap(N::integer(),
-	    X::vec(), XStart::integer(), Xinc::integer(),
-	    Y::vec(), YStart::integer(), Yinc::integer()) -> ok.
+	    X::cont(), XStart::integer(), Xinc::integer(),
+	    Y::cont(), YStart::integer(), Yinc::integer()) -> ok.
 swap(N, X, XStart, Xinc, Y, YStart, Yinc) ->
     two_vec(N, 0.0, X, XStart, Xinc, Y, YStart, Yinc, 1).
 
 %% @doc vector vector dot product
 %%   sum([Xi*YiT])
--spec dot(X::vec(), Y::vec()) -> float().
+-spec dot(X::cont(), Y::cont()) -> float().
 dot(X,Y) ->
-    N = vec_size(X),
-    N =:= vec_size(Y) orelse error(badarg),
+    N = cont_size(X),
+    N =:= cont_size(Y) orelse error(badarg),
     dot(N, X, 0, 1, Y, 0, 1).
 
 -spec dot(N::integer(),
-	   X::vec(), XStart::integer(), Xinc::integer(),
-	   Y::vec(), YStart::integer(), Yinc::integer()) -> float().
+	   X::cont(), XStart::integer(), Xinc::integer(),
+	   Y::cont(), YStart::integer(), Yinc::integer()) -> float().
 dot(N, X, XStart, Xinc, Y, YStart, Yinc) ->
     two_vec(N, 0.0, X, XStart, Xinc, Y, YStart, Yinc, 2).
 
@@ -161,38 +227,38 @@ two_vec(_N, _A, _X, _XStart, _Xinc, _Y, _YStart, _Yinc, _Op) -> ?nif_stub.
 %% @doc Computes the Euclidian norm of the elements of X
 %%  i.e. computes ||X||
 %%
--spec nrm2(X::vec()) -> float().
+-spec nrm2(X::cont()) -> float().
 nrm2(X) ->
-    N = vec_size(X),
+    N = cont_size(X),
     nrm2(N, X, 0, 1).
 
 -spec nrm2(N::integer(),
-	   X::vec(), XStart::integer(), Xinc::integer()) -> float().
+	   X::cont(), XStart::integer(), Xinc::integer()) -> float().
 nrm2(N, X, XStart, Xinc) ->
     one_vec(N, 0.0, X, XStart, Xinc, 1).
 
 %% @doc Computes the sum of the absolute values of X
 %%  i.e. computes sum |X|
 %%
--spec asum(X::vec()) -> float().
+-spec asum(X::cont()) -> float().
 asum(X) ->
-    N = vec_size(X),
+    N = cont_size(X),
     asum(N, X, 0, 1).
 
 -spec asum(N::integer(),
-	    X::vec(), XStart::integer(), Xinc::integer()) -> float().
+	    X::cont(), XStart::integer(), Xinc::integer()) -> float().
 asum(N, X, XStart, Xinc) ->
     one_vec(N, 0.0, X, XStart, Xinc, 2).
 
 %% @doc Locates the max value
 %%  (index from Xstart)
--spec iamax(X::vec()) -> {Index::integer(), Max::float()}.
+-spec iamax(X::cont()) -> {Index::integer(), Max::float()}.
 iamax(X) ->
-    N = vec_size(X),
+    N = cont_size(X),
     iamax(N, X, 0, 1).
 
 -spec iamax(N::integer(),
-	     X::vec(), XStart::integer(), Xinc::integer()) ->
+	     X::cont(), XStart::integer(), Xinc::integer()) ->
 		    {Index::integer(), Max::float()}.
 iamax(N, X, XStart, Xinc) ->
     one_vec(N, 0.0, X, XStart, Xinc, 3).
@@ -202,209 +268,206 @@ one_vec(_N, _Alpha, _X, _XStart, _Xinc, _Op) -> ?nif_stub.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Level 2
 
-
 %% @doc Perform a generic M*N matrix vector operation
-%%  no_transp:    Alpha*A*x+Beta*Y = Y
-%%  transp:       Alpha*A'*x+Beta*Y = Y
-%%  conj_transp:  Alpha*conjug(A')*x+Beta*Y = Y
+%%  no_transp:    Alpha*A*x+Beta*Y => Y
+%%  transp:       Alpha*A'*x+Beta*Y => Y
+%%  conj_transp:  Alpha*conjug(A')*x+Beta*Y => Y
 %% where:
-%%  Trans is one of normal, transpose, conjugate
+%%  Trans is one of no_transp, transpose, conjugate
 %%  M is the number of rows
 %%  N is the number of columns
 %%  A is an M*N matrix
-%%  Stride specifies the size of the first dimension of A
-%%         i.e. >= N on row_major and >= M on col_major
 %%  X and Y are vectors fo length ( 1 + ( N - 1 )*abs( Incx ) ) when Trans is normal
 %%          and otherwise ( 1 + ( M - 1 )*abs( Incx ) )
 -spec gemv(M::integer(), N::integer(),
-	   Alpha::float(), A::vec(),
-	   X::vec(), Beta::float(), Y::vec()) -> ok.
+	   Alpha::float(), A::cont(),
+	   X::cont(), Beta::float(), Y::cont()) -> ok.
 gemv(M, N, Alpha, A, X, Beta, Y) ->
     gemv(row_maj, no_transp, M, N, Alpha, A, N, X, 0, 1, Beta, Y, 0, 1).
 -spec gemv(Order::matrix_order(),Trans::matrix_op(),
 	    M::integer(), N::integer(),
-	    Alpha::float(), A::vec(), Stride::integer(),
-	    X::vec(), StartX::integer(), IncX::integer(),
+	    Alpha::float(), A::cont(), IncA::integer(),
+	    X::cont(), StartX::integer(), IncX::integer(),
 	    Beta::float(),
-	    Y::vec(), StartY::integer(), IncY::integer()) -> ok.
-gemv(Ord, Trans, M, N, Alpha, A, Stride,
+	    Y::cont(), StartY::integer(), IncY::integer()) -> ok.
+gemv(Ord, Trans, M, N, Alpha, A, IncA,
      X, StartX, IncX, Beta, Y, StartY, IncY) ->
-    gemv_impl(Ord, Trans, M, N, Alpha, A, Stride,
+    gemv_impl(Ord, Trans, M, N, Alpha, A, IncA,
 	      X, StartX, IncX, Beta, Y, StartY, IncY, 0).
 
-gemv_impl(_Ord, _Trans, _M, _N, _Alpha, _A, _Stride,
+gemv_impl(_Ord, _Trans, _M, _N, _Alpha, _A, _IncA,
 	  _X, _StartX, _IncX, _Beta, _Y, _StartY, _IncY, _Op) ->
   ?nif_stub.
 
 %% @doc Perform a symmetric M*N matrix vector operation
-%%        same as gemv but with a symmetric matrix.
+%%      same as gemv but with a symmetric matrix.
+%% Alpha*A*X+Beta*Y => Y
 -spec symv(UpLo::matrix_uplo(), N::integer(),
-	   Alpha::float(), A::vec(),
-	   X::vec(), Beta::float(), Y::vec()) -> ok.
+	   Alpha::float(), A::cont(),
+	   X::cont(), Beta::float(), Y::cont()) -> ok.
 symv(UpLo, N, Alpha, A, X, Beta, Y) ->
     symv(row_maj, UpLo, N, Alpha, A, N, X, 0, 1, Beta, Y, 0, 1).
 -spec symv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   N::integer(),
-	   Alpha::float(), A::vec(), Stride::integer(),
-	   X::vec(), StartX::integer(), IncX::integer(),
+	   Alpha::float(), A::cont(), IncA::integer(),
+	   X::cont(), StartX::integer(), IncX::integer(),
 	   Beta::float(),
-	   Y::vec(), StartY::integer(), IncY::integer()) -> ok.
-symv(Ord, UpLo, N, Alpha, A, Stride, X, StartX, IncX, Beta, Y, StartY, IncY) ->
-    gemv_impl(Ord, UpLo, 0, N, Alpha, A, Stride, X, StartX, IncX, Beta, Y, StartY, IncY, 1).
+	   Y::cont(), StartY::integer(), IncY::integer()) -> ok.
+symv(Ord, UpLo, N, Alpha, A, IncA, X, StartX, IncX, Beta, Y, StartY, IncY) ->
+    gemv_impl(Ord, UpLo, 0, N, Alpha, A, IncA, X, StartX, IncX, Beta, Y, StartY, IncY, 1).
 
 %% @doc Perform a packed symmetric M*N matrix vector operation
-%%        same as gemv but with a packed symmetric matrix,
-%%        i.e. only half matrix is expected in A.
+%% same as gemv but with a packed symmetric matrix,
+%% i.e. only half matrix is expected in A.
+%% Alpha*A*X+Beta*Y => Y
 -spec spmv(UpLo::matrix_uplo(), N::integer(),
-	   Alpha::float(), A::vec(),
-	   X::vec(), Beta::float(), Y::vec()) -> ok.
+	   Alpha::float(), A::cont(),
+	   X::cont(), Beta::float(), Y::cont()) -> ok.
 spmv(UpLo, N, Alpha, A, X, Beta, Y) ->
     spmv(row_maj, UpLo, N, Alpha, A, X, 0, 1, Beta, Y, 0, 1).
 -spec spmv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   N::integer(),
-	   Alpha::float(), A::vec(),
-	   X::vec(), StartX::integer(), IncX::integer(),
+	   Alpha::float(), A::cont(),
+	   X::cont(), StartX::integer(), IncX::integer(),
 	   Beta::float(),
-	   Y::vec(), StartY::integer(), IncY::integer()) -> ok.
+	   Y::cont(), StartY::integer(), IncY::integer()) -> ok.
 spmv(Ord, UpLo, N, Alpha, A, X, StartX, IncX, Beta, Y, StartY, IncY) ->
     gemv_impl(Ord, UpLo, 1, N, Alpha, A, 0, X, StartX, IncX, Beta, Y, StartY, IncY, 2).
 
 %% @doc Perform a triangular matrix * vector
-%%  no_transp:    A*X = X
-%%  transp:       A'*X = X
-%%  conj_transp:  conjug(A')*X = Y
+%%  no_transp:    A*X => X
+%%  transp:       A'*X => X
+%%  conj_transp:  conjug(A')*X => Y
 %% where:
 %%  Trans is one of normal, transpose, conjugate
 %%  A is an N*N matrix upper or lower matrix
-%%  Stride specifies the size of the first dimension of A
-%%         i.e. >= N on row_major and >= M on col_major
 %%  X and Y are vectors of length ( 1 + ( N - 1 )*abs( Inc ) ) when Trans is normal
 %%          and otherwise ( 1 + ( M - 1 )*abs( Inc ) )
--spec trmv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::vec(), X::vec()) -> ok.
+-spec trmv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::cont(), X::cont()) -> ok.
 trmv(UpLo, Diag, N, A, X) ->
     trmv(row_maj, UpLo, no_transp, Diag, N, A, N, X, 0, 1).
 -spec trmv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   Trans::matrix_op(), Diag::matrix_diag(),
-	   N::integer(), A::vec(), Stride::integer(),
-	   X::vec(), StartX::integer(), IncX::integer()) -> ok.
-trmv(Ord, Uplo, Trans, Diag, N, A, Stride, X, StartX, IncX) ->
-    trmv_impl(Ord, Uplo, Trans, Diag, N, A, Stride, X, StartX, IncX, 0).
+	   N::integer(), A::cont(), IncA::integer(),
+	   X::cont(), StartX::integer(), IncX::integer()) -> ok.
+trmv(Ord, Uplo, Trans, Diag, N, A, IncA, X, StartX, IncX) ->
+    trmv_impl(Ord, Uplo, Trans, Diag, N, A, IncA, X, StartX, IncX, 0).
 
-trmv_impl(_Ord, _Uplo, _Trans, _Diag, _N, _A, _Stride,
+trmv_impl(_Ord, _Uplo, _Trans, _Diag, _N, _A, _IncA,
 	  _X, _StartX, _IncX, _Op) -> ?nif_stub.
-trmv_impl(_Ord, _Uplo, _Trans, _Diag, _N, _A, _Stride,
+trmv_impl(_Ord, _Uplo, _Trans, _Diag, _N, _A, _IncA,
 	  _X, _StartX, _IncX, _Op, _Alpha) -> ?nif_stub.
 
 
 %% @doc Perform a packed triangular matrix * vector
 %%  see above
--spec tpmv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::vec(), X::vec()) -> ok.
+-spec tpmv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::cont(), X::cont()) -> ok.
 tpmv(UpLo, Diag, N, A, X) ->
     tpmv(row_maj, UpLo, no_transp, Diag, N, A, X, 0, 1).
 -spec tpmv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   Trans::matrix_op(), Diag::matrix_diag(),
-	   N::integer(), A::vec(),
-	   X::vec(), StartX::integer(), IncX::integer()) -> ok.
+	   N::integer(), A::cont(),
+	   X::cont(), StartX::integer(), IncX::integer()) -> ok.
 tpmv(Ord, Uplo, Trans, Diag, N, A, X, StartX, IncX) ->
     trmv_impl(Ord, Uplo, Trans, Diag, N, A, 0, X, StartX, IncX, 1).
 
 %% @doc Solve a system of linear equations whose coefficients are in a triangular matrix.
-%%  A*b = x  (where x is overwritten with the content of b)
--spec trsv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::vec(), X::vec()) -> ok.
+%%  A*B => X  (where X is overwritten with the content of B)
+-spec trsv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::cont(), X::cont()) -> ok.
 trsv(UpLo, Diag, N, A, X) ->
     trsv(row_maj, UpLo, no_transp, Diag, N, A, N, X, 0, 1).
 -spec trsv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   Trans::matrix_op(), Diag::matrix_diag(),
-	   N::integer(), A::vec(), Stride::integer(),
-	   X::vec(), StartX::integer(), IncX::integer()) -> ok.
-trsv(Ord, Uplo, Trans, Diag, N, A, Stride, X, StartX, IncX) ->
-    trmv_impl(Ord, Uplo, Trans, Diag, N, A, Stride, X, StartX, IncX, 2).
+	   N::integer(), A::cont(), IncA::integer(),
+	   X::cont(), StartX::integer(), IncX::integer()) -> ok.
+trsv(Ord, Uplo, Trans, Diag, N, A, IncA, X, StartX, IncX) ->
+    trmv_impl(Ord, Uplo, Trans, Diag, N, A, IncA, X, StartX, IncX, 2).
 
 %% @doc Packed variant of trsv
--spec tpsv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::vec(), X::vec()) -> ok.
+-spec tpsv(UpLo::matrix_uplo(), Diag::matrix_diag(), N::integer(), A::cont(), X::cont()) -> ok.
 tpsv(UpLo, Diag, N, A, X) ->
     tpsv(row_maj, UpLo, no_transp, Diag, N, A, X, 0, 1).
 -spec tpsv(Order::matrix_order(), UpLo::matrix_uplo(),
 	   Trans::matrix_op(), Diag::matrix_diag(),
-	   N::integer(), A::vec(),
-	   X::vec(), StartX::integer(), IncX::integer()) -> ok.
+	   N::integer(), A::cont(),
+	   X::cont(), StartX::integer(), IncX::integer()) -> ok.
 tpsv(Ord, Uplo, Trans, Diag, N, A, X, StartX, IncX) ->
     trmv_impl(Ord, Uplo, Trans, Diag, N, A, 0, X, StartX, IncX, 3).
 
 %% @doc Performs a rank-1 update of a general matrix.
-%%   alpha*x*y'+A = A
+%%   alpha*X*Y'+A => A
 -spec ger(M::integer(), N::integer(),
-	  Alpha::float(), X::vec(), Y::vec(), A::vec()) -> ok.
+	  Alpha::float(), X::cont(), Y::cont(), A::cont()) -> ok.
 ger(M, N, Alpha, X, Y, A) ->
     ger(row_maj, M, N, Alpha, X, 0, 1, Y, 0, 1, A, N).
 
 -spec ger(Order::matrix_order(),
 	  M::integer(), N::integer(), Alpha::float(),
-	  X::vec(), StartX::integer(), IncX::integer(),
-	  Y::vec(), StartY::integer(), IncY::integer(),
-	  A::vec(), Stride::integer()) -> ok.
+	  X::cont(), StartX::integer(), IncX::integer(),
+	  Y::cont(), StartY::integer(), IncY::integer(),
+	  A::cont(), IncA::integer()) -> ok.
 ger(Ord, M, N, Alpha,
     X, StartX, IncX,
     Y, StartY, IncY,
-    A, Stride) ->
-    gemv_impl(Ord, no_transp, M, N, Alpha, A, Stride,
+    A, IncA) ->
+    gemv_impl(Ord, no_transp, M, N, Alpha, A, IncA,
 	      X, StartX, IncX, 0.0, Y, StartY, IncY, 3).
 
 %% @doc Performs a rank-1 update of a symmetric matrix.
-%%   alpha*x*x'+A = A
--spec syr(UpLo::matrix_uplo(), N::integer(), Alpha::float(), X::vec(), A::vec()) -> ok.
+%%   alpha*X*X'+A => A
+-spec syr(UpLo::matrix_uplo(), N::integer(), Alpha::float(), X::cont(), A::cont()) -> ok.
 syr(UpLo, N, Alpha, X, A) ->
     syr(row_maj, UpLo, N, Alpha, X, 0, 1, A, N).
 -spec syr(Order::matrix_order(), UpLo::matrix_uplo(),
 	  N::integer(), Alpha::float(),
-	  X::vec(), StartX::integer(), IncX::integer(),
-	  A::vec(), Stride::integer()) -> ok.
-syr(Ord, Uplo, N, Alpha, X, StartX, IncX, A, Stride) ->
-    trmv_impl(Ord, Uplo, no_transp, unit, N, A, Stride, X, StartX, IncX, 4, Alpha).
+	  X::cont(), StartX::integer(), IncX::integer(),
+	  A::cont(), IncA::integer()) -> ok.
+syr(Ord, Uplo, N, Alpha, X, StartX, IncX, A, IncA) ->
+    trmv_impl(Ord, Uplo, no_transp, unit, N, A, IncA, X, StartX, IncX, 4, Alpha).
 
 %% @doc Performs a rank-1 update of a symmetric matrix.
-%%   alpha*x*x'+A = A
--spec spr(UpLo::matrix_uplo(), N::integer(), Alpha::float(), X::vec(), A::vec()) -> ok.
+%%   alpha*X*X'+A => A
+-spec spr(UpLo::matrix_uplo(), N::integer(), Alpha::float(), X::cont(), A::cont()) -> ok.
 spr(UpLo, N, Alpha, X, A) ->
     spr(row_maj, UpLo, N, Alpha, X, 0, 1, A).
 -spec spr(Order::matrix_order(), UpLo::matrix_uplo(),
 	  N::integer(), Alpha::float(),
-	  X::vec(), StartX::integer(), IncX::integer(),
-	  A::vec()) -> ok.
+	  X::cont(), StartX::integer(), IncX::integer(),
+	  A::cont()) -> ok.
 spr(Ord, Uplo, N, Alpha, X, StartX, IncX, A) ->
     trmv_impl(Ord, Uplo, no_transp, unit, N, A, 0, X, StartX, IncX, 5, Alpha).
 
 %% @doc Performs a rank-2 update of a symmetric matrix.
-%%   alpha*x*y'+ alpha*y*x' + A = A
+%%   alpha*x*y'+ alpha*y*x' + A => A
 -spec syr2(Uplo::matrix_uplo(), N::integer(),
-	   Alpha::float(), X::vec(), Y::vec(), A::vec()) -> ok.
+	   Alpha::float(), X::cont(), Y::cont(), A::cont()) -> ok.
 syr2(UpLo, N, Alpha, X, Y, A) ->
     syr2(row_maj, UpLo, N, Alpha, X, 0, 1, Y, 0, 1, A, N).
 
 -spec syr2(Order::matrix_order(),UpLo::matrix_uplo(),
 	   N::integer(), Alpha::float(),
-	   X::vec(), StartX::integer(), IncX::integer(),
-	   Y::vec(), StartY::integer(), IncY::integer(),
-	   A::vec(), Stride::integer()) -> ok.
+	   X::cont(), StartX::integer(), IncX::integer(),
+	   Y::cont(), StartY::integer(), IncY::integer(),
+	   A::cont(), IncA::integer()) -> ok.
 syr2(Ord, UpLo, N, Alpha,
      X, StartX, IncX,
      Y, StartY, IncY,
-     A, Stride) ->
-    gemv_impl(Ord, UpLo, 0, N, Alpha, A, Stride,
+     A, IncA) ->
+    gemv_impl(Ord, UpLo, 0, N, Alpha, A, IncA,
 	      X, StartX, IncX, 0.0, Y, StartY, IncY, 4).
 
 %% @doc Performs a rank-2 update of a packed symmetric matrix.
-%%   alpha*x*y'+ alpha*y*x' + A = A
+%%   alpha*x*y'+ alpha*y*x' + A => A
 -spec spr2(Uplo::matrix_uplo(), N::integer(),
-	   Alpha::float(), X::vec(), Y::vec(), A::vec()) -> ok.
+	   Alpha::float(), X::cont(), Y::cont(), A::cont()) -> ok.
 spr2(UpLo, N, Alpha, X, Y, A) ->
     spr2(row_maj, UpLo, N, Alpha, X, 0, 1, Y, 0, 1, A).
 
 -spec spr2(Order::matrix_order(),UpLo::matrix_uplo(),
 	   N::integer(), Alpha::float(),
-	   X::vec(), StartX::integer(), IncX::integer(),
-	   Y::vec(), StartY::integer(), IncY::integer(),
-	   A::vec()) -> ok.
+	   X::cont(), StartX::integer(), IncX::integer(),
+	   Y::cont(), StartY::integer(), IncY::integer(),
+	   A::cont()) -> ok.
 spr2(Ord, UpLo, N, Alpha,
      X, StartX, IncX,
      Y, StartY, IncY,
@@ -417,24 +480,24 @@ spr2(Ord, UpLo, N, Alpha,
 
 %% @doc Perform a matrix-matrix operation with general matrices
 %%
-%%  alpha*op(A)*op(B) + beta*C = C
+%%  alpha*op(A)*op(B) + beta*C => C
 %%  where Op(A) and Op(B) is described by OpA and OpB.
 %%  In the no transpose case:
 %%    A MxK matrix
 %%    B KxN matrix
 %%    C MxN matrix
 -spec gemm(M::integer(), N::integer(), K::integer(),
-	   Alpha::float(), A::vec(), B::vec(), Beta::float(), C::vec()) -> ok.
+	   Alpha::float(), A::cont(), B::cont(), Beta::float(), C::cont()) -> ok.
 gemm(M, N, K, Alpha, A, B, Beta, C) ->
     gemm(row_maj, no_transp, no_transp, M, N, K, Alpha, A, K, B, N, Beta, C, N).
 
 -spec gemm(Order::matrix_order(), OpA::matrix_op(), OpB::matrix_op(),
 	   M::integer(), N::integer(), K::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
-	   B::vec(), IncB::integer(),
+	   A::cont(), IncA::integer(),
+	   B::cont(), IncB::integer(),
 	   Beta::float(),
-	   C::vec(), IncC::integer()) -> ok.
+	   C::cont(), IncC::integer()) -> ok.
 
 gemm(Order, TA, TB, M, N, K, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
     gemm_impl(Order, TA, TB, M, N, K, Alpha,
@@ -449,18 +512,18 @@ gemm_impl(_Order, _TA, _TB, _M, _N, _K, _Alpha, _A, _IncA, _B, _IncB, _Beta, _Op
 %%    left: alpha*A*B + beta*C => C
 %%   right: alpha*B*A + beta*C => C
 -spec symm(M::integer(), N::integer(),
-	   Alpha::float(), A::vec(), B::vec(),
-	   Beta::float(), C::vec()) -> ok.
+	   Alpha::float(), A::cont(), B::cont(),
+	   Beta::float(), C::cont()) -> ok.
 symm(M, N, Alpha, A, B, Beta, C) ->
     symm(row_maj, left, upper, M, N, Alpha, A, M, B, N, Beta, C, N).
 
 -spec symm(Order::matrix_order(), Side::matrix_side(), UpLo::matrix_uplo(),
 	   M::integer(), N::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
-	   B::vec(), IncB::integer(),
+	   A::cont(), IncA::integer(),
+	   B::cont(), IncB::integer(),
 	   Beta::float(),
-	   C::vec(), IncC::integer()) -> ok.
+	   C::cont(), IncC::integer()) -> ok.
 
 symm(Order, Side, Uplo, M, N, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
     gemm_impl(Order, Side, Uplo, M, N, 0, Alpha,
@@ -475,7 +538,7 @@ symm(Order, Side, Uplo, M, N, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
 %% op( A ) = A   or   op( A ) = A'.
 -spec trmm(Diag::matrix_diag(),
 	   M::integer(), N::integer(),
-	   Alpha::float(), A::vec(), B::vec()) -> ok.
+	   Alpha::float(), A::cont(), B::cont()) -> ok.
 trmm(Diag, M, N, Alpha, A, B) ->
     trmm(row_maj, left, upper, no_transp, Diag, M, N, Alpha, A, M, B, N).
 
@@ -483,8 +546,8 @@ trmm(Diag, M, N, Alpha, A, B) ->
 	   UpLo::matrix_uplo(), OpA::matrix_op(), Diag::matrix_diag(),
 	   M::integer(), N::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
-	   B::vec(), IncB::integer()) -> ok.
+	   A::cont(), IncA::integer(),
+	   B::cont(), IncB::integer()) -> ok.
 
 trmm(Order, Side, UpLo, OpA, Diag, M, N, Alpha, A, IncA, B, IncB) ->
     trmm_impl(Order, UpLo, OpA, M, N, 0, Alpha, A, IncA, B, IncB,
@@ -506,7 +569,7 @@ trmm_impl(_Order, _Uplo, _TA, _M, _N, _K, _Alpha,
 
 -spec trsm(UpLo::matrix_uplo(), Diag::matrix_diag(),
 	   M::integer(), N::integer(),
-	   Alpha::float(), A::vec(), B::vec()) -> ok.
+	   Alpha::float(), A::cont(), B::cont()) -> ok.
 trsm(UpLo, Diag, M, N, Alpha, A, B) ->
     trsm(row_maj, left, UpLo, no_transp, Diag, M, N, Alpha, A, M, B, N).
 
@@ -514,8 +577,8 @@ trsm(UpLo, Diag, M, N, Alpha, A, B) ->
 	   UpLo::matrix_uplo(), OpA::matrix_op(), Diag::matrix_diag(),
 	   M::integer(), N::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
-	   B::vec(), IncB::integer()) -> ok.
+	   A::cont(), IncA::integer(),
+	   B::cont(), IncB::integer()) -> ok.
 
 trsm(Order, Side, Uplo, OpA, Diag, M, N, Alpha, A, IncA, B, IncB) ->
     trmm_impl(Order, Uplo, OpA, M, N, 0, Alpha, A, IncA, B, IncB,
@@ -530,7 +593,7 @@ trsm(Order, Side, Uplo, OpA, Diag, M, N, Alpha, A, IncA, B, IncB) ->
 %% and A is an n by k matrix in the first case and a  k by n  matrix
 %% in the second case.
 -spec syrk(N::integer(), K::integer(),
-	   Alpha::float(), A::vec(), Beta::float(), C::vec()) -> ok.
+	   Alpha::float(), A::cont(), Beta::float(), C::cont()) -> ok.
 syrk(N, K, Alpha, A, Beta, C) ->
     syrk(row_maj, upper, no_transp, N, K, Alpha, A,K, Beta, C,N).
 
@@ -538,9 +601,9 @@ syrk(N, K, Alpha, A, Beta, C) ->
 	   OpA::matrix_op(),
 	   N::integer(), K::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
+	   A::cont(), IncA::integer(),
 	   Beta::float(),
-	   C::vec(), IncC::integer()) -> ok.
+	   C::cont(), IncC::integer()) -> ok.
 syrk(Order, Uplo, OpA, N, K, Alpha, A, IncA, Beta, C, IncC) ->
     trmm_impl(Order, Uplo, OpA, 0, N, K, Alpha, A, IncA, C, IncC,
 	      Beta, 5, unused, unused).
@@ -554,18 +617,18 @@ syrk(Order, Uplo, OpA, N, K, Alpha, A, IncA, Beta, C, IncC) ->
 %% and  A and B  are  n by k  matrices  in the  first  case  and  k by n
 %% matrices in the second case.
 -spec syr2k(N::integer(), K::integer(),
-	   Alpha::float(), A::vec(), B::vec(),
-	   Beta::float(), C::vec()) -> ok.
+	   Alpha::float(), A::cont(), B::cont(),
+	   Beta::float(), C::cont()) -> ok.
 syr2k(N, K, Alpha, A, B, Beta, C) ->
     syr2k(row_maj, upper, no_transp, N, K, Alpha, A, K, B, K, Beta, C, N).
 
 -spec syr2k(Order::matrix_order(), UpLo::matrix_uplo(), Op::matrix_op(),
 	   N::integer(), K::integer(),
 	   Alpha::float(),
-	   A::vec(), IncA::integer(),
-	   B::vec(), IncB::integer(),
+	   A::cont(), IncA::integer(),
+	   B::cont(), IncB::integer(),
 	   Beta::float(),
-	   C::vec(), IncC::integer()) -> ok.
+	   C::cont(), IncC::integer()) -> ok.
 
 syr2k(Order, Uplo, Op, N, K, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
     gemm_impl(Order, Uplo, Op, 0, N, K, Alpha,

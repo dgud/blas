@@ -3,25 +3,60 @@
 -compile(export_all).
 
 test() ->
+    data_types(),
     level1(),
     level2(),
     level3(),
     ok.
 
 vec(A) -> blasd:from_list(A).
-     
+
+
+data_types() ->
+    I0 = [0.0,1.0,2.0,3.0,4.0,5.0],
+    C0 = blasd:from_list(I0),
+    I0 = blasd:to_list(C0),
+    6  = blasd:cont_size(C0),
+    [{0.0,1.0},{2.0,3.0},{4.0,5.0}] = blasd:to_tuple_list(2, C0),
+    {'EXIT', {badarg,_}} = (catch blasd:to_tuple_list(4, C0)),
+    0.0 = blasd:value(0,C0),
+    3.0 = blasd:value(3,C0),
+    5.0 = blasd:value(5,C0),
+    {'EXIT', {badarg,_}} = (catch blasd:value(-1,C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:value(6,C0)),
+    {2.0,3.0} = blasd:values(2, 2, C0),
+    {'EXIT', {badarg,_}} = (catch blasd:values(5, 2, C0)),
+
+    [{2,2.0},{4,4.0}] = blasd:values([2,4], C0),
+    {'EXIT', {badarg,_}} = (catch blasd:values([2.0], C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:values([6], C0)),
+
+    {'EXIT', {badarg,_}} = (catch blasd:update(-1, 0.5, C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:update(3, foo, C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:update(6, 0.5, C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:update(foo, 0.5, C0)),
+    {'EXIT', {badarg,_}} = (catch blasd:update(foo, 0.5, foo)),
+    ok = blasd:update(0, -0.5, C0),
+    ok = blasd:update(3,  0.3, C0),
+    ok = blasd:update(5,  0.5, C0),
+    ok = blasd:update(1,  [0.1,0.2], C0),
+    [-0.5,0.1,0.2,0.3,4.0,0.5] = blasd:to_list(C0),
+    ok = blasd:update([{0,0.0}, {4,0.4}], C0),
+    [0.0,0.1,0.2,0.3,0.4,0.5] = blasd:to_list(C0),
+    {'EXIT', {badarg,_}} = (catch blasd:update([{0,0.0}, {4,0.4,234}], C0)),
+    ok.
 
 level1() ->
     I0 = [1.0,2.0,3.0,4.0,5.0],
     AllOnes = vec(lists:duplicate(5, 1.0)),
     AllTwos = vec(lists:duplicate(5, 2.0)),
     D0 = vec(I0),
-    5  = blasd:vec_size(D0),
+    5  = blasd:cont_size(D0),
     I0 = blasd:to_list(D0),
 
     I1 = [{-1.0,-1.0}, {0.0,0.0}, {1.0,0.0}, {2.0,0.0}, {3.0,0.0}],
     D1 = vec(I1),
-    10  = blasd:vec_size(D1),
+    10  = blasd:cont_size(D1),
     I1 = blasd:to_tuple_list(2, D1),
 
     {_R0,_Z0,C0,S0} = blasd:rotg(1.0, 1.0),

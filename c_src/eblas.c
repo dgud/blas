@@ -21,28 +21,33 @@ static ERL_NIF_TERM atom_nonunit;
 static ERL_NIF_TERM atom_unit;
 
 static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM to_tuple_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM vec_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM cont_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ERL_NIF_TERM drotg(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM l1d_1vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM l1d_2vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ErlNifFunc nif_funcs[] = {
     {"from_list", 1, from_list},
-    {"to_tuple_list", 2, to_tuple_list},
-    {"vec_size", 1, vec_size},
+    {"to_tuple_list_impl", 4, to_values},
+    {"cont_size", 1, cont_size},
+    {"values", 2, to_idx_list},
+    {"update", 2, cont_update},
+    {"update", 3, cont_update},
 
     {"rotg", 2, drotg},
     {"rot",  9, drot},
     {"copy", 4, dcopy},
-    {"one_vec", 6, l1d_1vec},
-    {"two_vec", 9, l1d_2vec},
+    {"one_vec", 6, l1d_1cont},
+    {"two_vec", 9, l1d_2cont},
 
     {"gemv_impl", 15, dgemv},
     {"trmv_impl", 11, dtrmv},
@@ -111,42 +116,89 @@ static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     return res;
 }
 
-static ERL_NIF_TERM to_tuple_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     ERL_NIF_TERM tail, *tmp;
     Avec *avec = NULL;
-    int i, j;
-    unsigned int dim;
-    double *ptr;
+    double *arr;
+    unsigned int idx, n, dim, i, j;
 
-    if(!enif_get_uint(env, argv[0], &dim)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec)) {
+    if(!enif_get_uint(env, argv[0], &idx)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[1], &n))   return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[2], &dim))  return enif_make_badarg(env);
+
+    if(!enif_get_resource(env, argv[3], avec_r, (void **) &avec))
 	return enif_make_badarg(env);
-    }
-    if(avec->n % dim != 0) return enif_make_badarg(env);
+    if(idx+n > avec->n) return enif_make_badarg(env);
 
-    tail = enif_make_list(env, 0);
-    ptr = avec->v + avec->n-dim;
-    if(dim == 1) {
+    if(n == 1 && dim == 0)  /* get_value() */
+	return enif_make_double(env, avec->v[idx]);
+
+    if(dim == 0) { /* to_list */
+	tail = enif_make_list(env, 0);
+	arr = avec->v + idx + n-1;
 	for(i=0; i < avec->n; i++) {
-	    tail = enif_make_list_cell(env, enif_make_double(env, *ptr), tail);
-	    ptr -= 1;
+	    tail = enif_make_list_cell(env, enif_make_double(env, *arr), tail);
+	    arr -= 1;
 	}
-    } else {
-	tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*dim);
-	for(i=0; i < avec->n / dim; i++) {
-	    for(j=0; j < dim; j++, ptr++) {
-		tmp[j] = enif_make_double(env, *ptr);
-	    }
-	    tail = enif_make_list_cell(env, enif_make_tuple_from_array(env, tmp, dim), tail);
-	    ptr -= 2*dim;
-	}
-	free(tmp);
+	return tail;
     }
+    if(dim == n) { /* to_tuple */
+	tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*n);
+	arr = avec->v;
+	for(i=0; i < n; i++) {
+	    tmp[i] = enif_make_double(env, arr[idx+i]);
+	}
+	tail = enif_make_tuple_from_array(env, tmp, n);
+	free(tmp);
+	return tail;
+    }
+
+    /* list of tuples */
+    if(n % dim != 0)
+	return enif_make_badarg(env);
+
+    arr = avec->v + idx + n-dim;
+    tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*dim);
+    tail = enif_make_list(env, 0);
+
+    for(i=0; i < avec->n / dim; i++) {
+	for(j=0; j < dim; j++, arr++) {
+	    tmp[j] = enif_make_double(env, *arr);
+	}
+	tail = enif_make_list_cell(env, enif_make_tuple_from_array(env, tmp, dim), tail);
+	arr -= 2*dim;
+    }
+    free(tmp);
     return tail;
 }
 
-static ERL_NIF_TERM vec_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+
+static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ERL_NIF_TERM hd, tail, *tmp;
+    Avec *avec = NULL;
+    double *arr;
+    unsigned int idx, n, i;
+
+    if(!enif_get_list_length(env, argv[0], &n) || n == 0)
+	return enif_make_badarg(env);
+    if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
+	return enif_make_badarg(env);
+
+    tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*n);
+    arr = avec->v;
+    tail = argv[0];
+    for(i=0; i < n; i++) {
+	enif_get_list_cell(env, tail, &hd, &tail);
+	if(!enif_get_uint(env, hd, &idx) || idx >= avec->n)
+	    return enif_make_badarg(env);
+	tmp[i] = enif_make_tuple2(env, hd, enif_make_double(env, arr[idx]));
+    }
+    return enif_make_list_from_array(env, tmp, n);
+}
+
+static ERL_NIF_TERM cont_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     Avec *avec = NULL;
 
@@ -156,6 +208,71 @@ static ERL_NIF_TERM vec_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 
     return enif_make_uint(env, avec->n);
 }
+
+static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ERL_NIF_TERM hd, tail;
+    const ERL_NIF_TERM *curr;
+    Avec *avec = NULL;
+    double *arr, temp;
+    int i=0;
+    unsigned int idx;
+
+    if(argc == 2) { /* tuple list of values */
+	if(!enif_is_list(env, argv[0]))
+	    return enif_make_badarg(env);
+	if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
+	    return enif_make_badarg(env);
+	arr = avec->v;
+	tail = argv[0];
+	while(!enif_is_empty_list(env, tail)) {
+	    if(!enif_get_list_cell(env, tail, &hd, &tail))
+		return enif_make_badarg(env);
+	    if(!enif_get_tuple(env, hd, &i, &curr) || i != 2)
+		return enif_make_badarg(env);
+	    if(!enif_get_uint(env, curr[0], &idx) || idx >= avec->n)
+		return enif_make_badarg(env);
+	    if(!enif_get_double(env, curr[1], &temp))
+		return enif_make_badarg(env);
+	    arr[idx] = temp;
+	}
+	return atom_ok;
+    }
+    /* update(Idx, V|[Vs], Vec) */
+    if(!enif_get_uint(env, argv[0], &idx))
+	return enif_make_badarg(env);
+    if(!enif_is_list(env, argv[1])) {
+	/* update(Idx, Double, Vec) */
+	if(!enif_get_double(env, argv[1], &temp))
+	    return enif_make_badarg(env);
+	if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
+	    return enif_make_badarg(env);
+	if(idx >= avec->n)
+	    return enif_make_badarg(env);
+	arr = avec->v;
+	arr[idx] = temp;
+	return atom_ok;
+    }
+    /* update(Idx, [Values], Vec) */
+    tail = argv[1];
+    if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
+	return enif_make_badarg(env);
+    arr = avec->v+idx;
+    while(!enif_is_empty_list(env, tail)) {
+	if(!enif_get_list_cell(env, tail, &hd, &tail))
+	    return enif_make_badarg(env);
+	if(!enif_get_double(env, hd, &temp))
+	    return enif_make_badarg(env);
+	*arr = temp;
+	arr++;
+	idx++;
+	if(idx > avec->n)
+	    return enif_make_badarg(env);
+    }
+    return atom_ok;
+}
+
+
 
 /* ---------------------------------------------------*/
 
@@ -202,7 +319,7 @@ static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return atom_ok;
 }
 
-static ERL_NIF_TERM l1d_1vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned int op, n, xs;
     int xi, tmp;
@@ -270,7 +387,7 @@ static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return res;
 }
 
-static ERL_NIF_TERM l1d_2vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     unsigned int op, n, xs, ys;
     int xi, yi;
