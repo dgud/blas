@@ -14,6 +14,9 @@ static ERL_NIF_TERM atom_conjugatet;
 static ERL_NIF_TERM atom_upper;
 static ERL_NIF_TERM atom_lower;
 
+static ERL_NIF_TERM atom_left;
+static ERL_NIF_TERM atom_right;
+
 static ERL_NIF_TERM atom_nonunit;
 static ERL_NIF_TERM atom_unit;
 
@@ -28,6 +31,7 @@ static ERL_NIF_TERM l1d_1vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 static ERL_NIF_TERM l1d_2vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ErlNifFunc nif_funcs[] = {
     {"from_list", 1, from_list},
@@ -43,6 +47,9 @@ static ErlNifFunc nif_funcs[] = {
     {"gemv_impl", 15, dgemv},
     {"trmv_impl", 11, dtrmv},
     {"trmv_impl", 12, dtrmv},
+
+    {"gemm_impl", 15, dgemm},
+    {"trmm_impl", 15, dgemm},
 };
 
 static ErlNifResourceType *avec_r;
@@ -424,7 +431,135 @@ static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return atom_ok;
 }
 
+/* ---------------------------------------------------*/
 
+static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned int m, n, k, lda, ldb, ldc, op;
+    Avec *aa, *ab, *ac;
+    double alpha, beta, *a, *b, *c = NULL;
+    enum CBLAS_ORDER order = 0;
+    enum CBLAS_TRANSPOSE ta = 0, tb = 0;
+    enum CBLAS_UPLO uplo = 0;
+    enum CBLAS_SIDE side = 0;
+    enum CBLAS_DIAG diag = 0;
+
+    if(enif_is_identical(argv[0], atom_rowmaj)) order = CblasRowMajor;
+    else if(enif_is_identical(argv[0], atom_colmaj)) order = CblasColMajor;
+    else return enif_make_badarg(env);
+
+    if(!enif_get_uint(env, argv[3], &m)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[4], &n)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[5], &k)) return enif_make_badarg(env);
+
+    if(!enif_get_double(env, argv[6], &alpha)) return enif_make_badarg(env);
+
+    if(!enif_get_resource(env, argv[7], avec_r, (void **) &aa)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[8], &lda)) return enif_make_badarg(env);
+
+    if(!enif_get_resource(env, argv[9], avec_r, (void **) &ab)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[10], &ldb)) return enif_make_badarg(env);
+
+    if(!enif_get_double(env, argv[11], &beta)) return enif_make_badarg(env);
+
+    if(!enif_get_uint(env, argv[12], &op)) return enif_make_badarg(env);
+    if(op < 3) {
+	if(!enif_get_resource(env, argv[13], avec_r, (void **) &ac))
+	    return enif_make_badarg(env);
+	if(!enif_get_uint(env, argv[14], &ldc)) return enif_make_badarg(env);
+	c = ac->v;
+    }
+    a = aa->v;
+    b = ab->v;
+    switch(op) {
+    case 0: {
+	if(enif_is_identical(argv[1], atom_notransp)) ta = CblasNoTrans;
+	else if(enif_is_identical(argv[1], atom_transpose)) ta = CblasTrans;
+	else if(enif_is_identical(argv[1], atom_conjugatet)) ta = CblasConjTrans;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
+	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
+	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
+	else return enif_make_badarg(env);
+
+	cblas_dgemm(order, ta,tb, m,n,k, alpha, a,lda, b,ldb, beta, c,ldc);
+	break;}
+    case 1: {
+	if(enif_is_identical(argv[1], atom_left)) side = CblasLeft;
+	else if(enif_is_identical(argv[1], atom_right)) side = CblasRight;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_lower)) uplo = CblasLower;
+	else if(enif_is_identical(argv[2], atom_upper)) uplo = CblasUpper;
+	else return enif_make_badarg(env);
+
+	cblas_dsymm(order, side, uplo, m,n, alpha, a,lda, b,ldb, beta, c,ldc);
+	break; }
+    case 2: {
+	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
+	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
+	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
+	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
+
+	// fprintf(stderr, "%d %d,%d,%d %.2f %.2f %d,%d,%d\r\n", __LINE__, m,n,k, alpha, beta, lda,ldb,ldc);
+	cblas_dsyr2k(order, uplo, tb, n, k, alpha, a,lda, b,ldb, beta, c,ldc);
+	break; }
+    case 3: {
+	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
+	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
+	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
+	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
+
+	if(enif_is_identical(argv[13], atom_left)) side = CblasLeft;
+	else if(enif_is_identical(argv[13], atom_right)) side = CblasRight;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[14], atom_nonunit)) diag = CblasNonUnit;
+	else if(enif_is_identical(argv[14], atom_unit)) diag = CblasUnit;
+	else return enif_make_badarg(env);
+
+	cblas_dtrmm(order,side,uplo,tb,diag, m,n, alpha, a,lda, b, ldb);
+	break; }
+    case 4: {
+	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
+	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
+	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
+	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
+
+	if(enif_is_identical(argv[13], atom_left)) side = CblasLeft;
+	else if(enif_is_identical(argv[13], atom_right)) side = CblasRight;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[14], atom_nonunit)) diag = CblasNonUnit;
+	else if(enif_is_identical(argv[14], atom_unit)) diag = CblasUnit;
+	else return enif_make_badarg(env);
+
+	cblas_dtrsm(order,side,uplo,tb,diag, m,n, alpha, a,lda, b, ldb);
+	break; }
+    case 5: {
+	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
+	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
+	else return enif_make_badarg(env);
+
+	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
+	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
+	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
+
+	cblas_dsyrk(order,uplo,tb, n,k, alpha, a,lda, beta, b,ldb);
+	break; }
+    }
+    return atom_ok;
+}
 
 /* ---------------------------------------------------*/
 
@@ -441,6 +576,9 @@ static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 
     atom_upper = enif_make_atom(env,"upper");
     atom_lower = enif_make_atom(env,"lower");
+
+    atom_left = enif_make_atom(env,"left");
+    atom_right = enif_make_atom(env,"right");
 
     atom_nonunit = enif_make_atom(env,"non_unit");
     atom_unit = enif_make_atom(env,"unit");

@@ -30,9 +30,14 @@
 	  trsv/5, trsv/10, tpsv/5, tpsv/9,
 	  ger/6, ger/12,
 	  syr/5, syr/9, spr/5, spr/8,
-	  syr2/6, syr2/12, spr2/6, spr2/11
+	  syr2/6, syr2/12, spr2/6, spr2/11,
 	  %% Level 3
-
+	  gemm/8, gemm/14,
+	  symm/7, symm/13,
+	  trmm/6, trmm/12,
+	  trsm/7, trsm/12,
+	  syrk/6,  syrk/11,
+	  syr2k/7, syr2k/13
 	]).
 
 -opaque(vec).
@@ -40,6 +45,7 @@
 -type matrix_op() :: no_transp|transp|conj_transp.
 -type matrix_order() :: row_maj|col_maj.
 -type matrix_uplo()  :: upper|lower.
+-type matrix_side()  :: left|right.
 -type matrix_diag() :: unit|non_unit.
 
 -on_load(on_load/0).
@@ -405,6 +411,165 @@ spr2(Ord, UpLo, N, Alpha,
      A) ->
     gemv_impl(Ord, UpLo, 0, N, Alpha, A, 0,
 	      X, StartX, IncX, 0.0, Y, StartY, IncY, 5).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Level 3
+
+%% @doc Perform a matrix-matrix operation with general matrices
+%%
+%%  alpha*op(A)*op(B) + beta*C = C
+%%  where Op(A) and Op(B) is described by OpA and OpB.
+%%  In the no transpose case:
+%%    A MxK matrix
+%%    B KxN matrix
+%%    C MxN matrix
+-spec gemm(M::integer(), N::integer(), K::integer(),
+	   Alpha::float(), A::vec(), B::vec(), Beta::float(), C::vec()) -> ok.
+gemm(M, N, K, Alpha, A, B, Beta, C) ->
+    gemm(row_maj, no_transp, no_transp, M, N, K, Alpha, A, K, B, N, Beta, C, N).
+
+-spec gemm(Order::matrix_order(), OpA::matrix_op(), OpB::matrix_op(),
+	   M::integer(), N::integer(), K::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   B::vec(), IncB::integer(),
+	   Beta::float(),
+	   C::vec(), IncC::integer()) -> ok.
+
+gemm(Order, TA, TB, M, N, K, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
+    gemm_impl(Order, TA, TB, M, N, K, Alpha,
+	      A, IncA, B, IncB, Beta, 0, C, IncC).
+
+gemm_impl(_Order, _TA, _TB, _M, _N, _K, _Alpha, _A, _IncA, _B, _IncB, _Beta, _Op, _C, _IncC) ->
+    ?nif_stub.
+
+%% @doc Perform a matrix-matrix operation with a symmetric matrix
+%%  A is a symmetric matrix and  B and C are  MxN matrices
+%%  Depending on Side:
+%%    left: alpha*A*B + beta*C => C
+%%   right: alpha*B*A + beta*C => C
+-spec symm(M::integer(), N::integer(),
+	   Alpha::float(), A::vec(), B::vec(),
+	   Beta::float(), C::vec()) -> ok.
+symm(M, N, Alpha, A, B, Beta, C) ->
+    symm(row_maj, left, upper, M, N, Alpha, A, M, B, N, Beta, C, N).
+
+-spec symm(Order::matrix_order(), Side::matrix_side(), UpLo::matrix_uplo(),
+	   M::integer(), N::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   B::vec(), IncB::integer(),
+	   Beta::float(),
+	   C::vec(), IncC::integer()) -> ok.
+
+symm(Order, Side, Uplo, M, N, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
+    gemm_impl(Order, Side, Uplo, M, N, 0, Alpha,
+	      A, IncA, B, IncB, Beta, 1, C, IncC).
+
+%% @doc Perform a matrix-matrix operation
+%% alpha*op( A )*B => B
+%%   or
+%% alpha*B*op( A ) => B
+%% where alpha is a scalar, B is an m by n matrix, A is a unit, or
+%% non-unit, upper or lower triangular matrix and op( A ) is one  of
+%% op( A ) = A   or   op( A ) = A'.
+-spec trmm(Diag::matrix_diag(),
+	   M::integer(), N::integer(),
+	   Alpha::float(), A::vec(), B::vec()) -> ok.
+trmm(Diag, M, N, Alpha, A, B) ->
+    trmm(row_maj, left, upper, no_transp, Diag, M, N, Alpha, A, M, B, N).
+
+-spec trmm(Order::matrix_order(), Side::matrix_side(),
+	   UpLo::matrix_uplo(), OpA::matrix_op(), Diag::matrix_diag(),
+	   M::integer(), N::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   B::vec(), IncB::integer()) -> ok.
+
+trmm(Order, Side, UpLo, OpA, Diag, M, N, Alpha, A, IncA, B, IncB) ->
+    trmm_impl(Order, UpLo, OpA, M, N, 0, Alpha, A, IncA, B, IncB,
+	      0.0, 3, Side, Diag).
+
+trmm_impl(_Order, _Uplo, _TA, _M, _N, _K, _Alpha,
+	  _A, _IncA, _B, _IncB, _Float, _Op, _Side, _Diag) ->
+    ?nif_stub.
+
+%% @doc solves one of the matrix equations
+%%
+%%   op( A )*X = alpha*B => B,   or   X*op( A ) = alpha*B => B
+%%
+%% where alpha is a scalar, X and B are m by n matrices, A is a unit, or
+%% non-unit,  upper or lower triangular matrix  and  op( A )  is one  of
+%% op( A ) = A   or   op( A ) = A'.
+%%
+%% The matrix X is overwritten on B.
+
+-spec trsm(UpLo::matrix_uplo(), Diag::matrix_diag(),
+	   M::integer(), N::integer(),
+	   Alpha::float(), A::vec(), B::vec()) -> ok.
+trsm(UpLo, Diag, M, N, Alpha, A, B) ->
+    trsm(row_maj, left, UpLo, no_transp, Diag, M, N, Alpha, A, M, B, N).
+
+-spec trsm(Order::matrix_order(), Side::matrix_side(),
+	   UpLo::matrix_uplo(), OpA::matrix_op(), Diag::matrix_diag(),
+	   M::integer(), N::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   B::vec(), IncB::integer()) -> ok.
+
+trsm(Order, Side, Uplo, OpA, Diag, M, N, Alpha, A, IncA, B, IncB) ->
+    trmm_impl(Order, Uplo, OpA, M, N, 0, Alpha, A, IncA, B, IncB,
+	      0.0, 4, Side, Diag).
+
+%% @doc syrk performs one of the symmetric rank k operations
+%%    alpha*A*A' + beta*C => C
+%% or
+%%    alpha*A'*A + beta*C => C
+%%
+%% where alpha and beta are scalars, C is an  n by n  symmetric matrix
+%% and A is an n by k matrix in the first case and a  k by n  matrix
+%% in the second case.
+-spec syrk(N::integer(), K::integer(),
+	   Alpha::float(), A::vec(), Beta::float(), C::vec()) -> ok.
+syrk(N, K, Alpha, A, Beta, C) ->
+    syrk(row_maj, upper, no_transp, N, K, Alpha, A,K, Beta, C,N).
+
+-spec syrk(Order::matrix_order(), UpLo::matrix_uplo(),
+	   OpA::matrix_op(),
+	   N::integer(), K::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   Beta::float(),
+	   C::vec(), IncC::integer()) -> ok.
+syrk(Order, Uplo, OpA, N, K, Alpha, A, IncA, Beta, C, IncC) ->
+    trmm_impl(Order, Uplo, OpA, 0, N, K, Alpha, A, IncA, C, IncC,
+	      Beta, 5, unused, unused).
+
+%% @doc Perform a symmetrik rank-2k operation
+%%   alpha*A*B' + alpha*B*A' + beta*C => C
+%% or
+%%   alpha*A'*B + alpha*B'*A + beta*C => C
+%%
+%% where  alpha and beta  are scalars, C is an  n by n  symmetric matrix
+%% and  A and B  are  n by k  matrices  in the  first  case  and  k by n
+%% matrices in the second case.
+-spec syr2k(N::integer(), K::integer(),
+	   Alpha::float(), A::vec(), B::vec(),
+	   Beta::float(), C::vec()) -> ok.
+syr2k(N, K, Alpha, A, B, Beta, C) ->
+    syr2k(row_maj, upper, no_transp, N, K, Alpha, A, K, B, K, Beta, C, N).
+
+-spec syr2k(Order::matrix_order(), UpLo::matrix_uplo(), Op::matrix_op(),
+	   N::integer(), K::integer(),
+	   Alpha::float(),
+	   A::vec(), IncA::integer(),
+	   B::vec(), IncB::integer(),
+	   Beta::float(),
+	   C::vec(), IncC::integer()) -> ok.
+
+syr2k(Order, Uplo, Op, N, K, Alpha, A, IncA, B, IncB, Beta, C, IncC) ->
+    gemm_impl(Order, Uplo, Op, 0, N, K, Alpha,
+	      A, IncA, B, IncB, Beta, 2, C, IncC).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
