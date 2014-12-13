@@ -715,4 +715,4 @@ static void unload(ErlNifEnv* env, void* priv_data)
 
 }
 
-ERL_NIF_INIT(blasd,nif_funcs,load,NULL,upgrade,unload)
+ERL_NIF_INIT(blasd_raw,nif_funcs,load,NULL,upgrade,unload)

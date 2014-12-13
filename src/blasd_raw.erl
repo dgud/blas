@@ -33,7 +33,7 @@
 %%% @end Created : 9 Dec 2014 by Dan Gudmundsson
 %%%   <dgud@erlang.org>
 %%%   -------------------------------------------------------------------
--module(blasd).
+-module(blasd_raw).
 
 %% Data handling
 -export([from_list/1,
