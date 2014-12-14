@@ -87,8 +87,9 @@ scal(Alpha, X) ->
 %% @doc Scale values in the vector with Alpha
 %% Start at StartX pos and step Xinc
 -spec scal(N::integer(), Alpha::float(),
-	    X::vec(), XStart::integer(), Xinc::integer()) -> ok.
-scal(_N, _Alpha, _X, _XStart, _Xinc) -> ?nif_stub.
+	   X::vec(), XStart::integer(), Xinc::integer()) -> ok.
+scal(N, Alpha, X, XStart, Xinc) ->
+    one_vec(N, Alpha, X, XStart, Xinc, 0).
 
 %% @doc Copy all values in the vector
 -spec copy(Vec::vec()) -> vec().
@@ -112,7 +113,8 @@ axpy(A, X, Y) ->
 -spec axpy(N::integer(), Alpha::float(),
 	    X::vec(), XStart::integer(), Xinc::integer(),
 	    Y::vec(), YStart::integer(), Yinc::integer()) -> ok.
-axpy(_N, _A, _X, _XStart, _Xinc, _Y, _YStart, _Yinc) -> ?nif_stub.
+axpy(N, A, X, XStart, Xinc, Y, YStart, Yinc) ->
+    two_vec(N, A, X, XStart, Xinc, Y, YStart, Yinc, 0).
 
 %% @doc Swap vectors
 %% Given two vectors x and y, the swap routines return vectors y
@@ -120,7 +122,8 @@ axpy(_N, _A, _X, _XStart, _Xinc, _Y, _YStart, _Yinc) -> ?nif_stub.
 -spec swap(N::integer(),
 	    X::vec(), XStart::integer(), Xinc::integer(),
 	    Y::vec(), YStart::integer(), Yinc::integer()) -> ok.
-swap(_N, _X, _XStart, _Xinc, _Y, _YStart, _Yinc) -> ?nif_stub.
+swap(N, X, XStart, Xinc, Y, YStart, Yinc) ->
+    two_vec(N, 0.0, X, XStart, Xinc, Y, YStart, Yinc, 1).
 
 %% @doc vector vector dot product
 %%   sum([Xi*YiT])
@@ -133,7 +136,11 @@ dot(X,Y) ->
 -spec dot(N::integer(),
 	   X::vec(), XStart::integer(), Xinc::integer(),
 	   Y::vec(), YStart::integer(), Yinc::integer()) -> float().
-dot(_N, _X, _XStart, _Xinc, _Y, _YStart, _Yinc) -> ?nif_stub.
+dot(N, X, XStart, Xinc, Y, YStart, Yinc) ->
+    two_vec(N, 0.0, X, XStart, Xinc, Y, YStart, Yinc, 2).
+
+two_vec(_N, _A, _X, _XStart, _Xinc, _Y, _YStart, _Yinc, _Op) -> ?nif_stub.
+
 
 %% @doc Computes the Euclidian norm of the elements of X
 %%  i.e. computes ||X||
@@ -145,7 +152,8 @@ nrm2(X) ->
 
 -spec nrm2(N::integer(),
 	   X::vec(), XStart::integer(), Xinc::integer()) -> float().
-nrm2(_N, _X, _XStart, _Xinc) -> ?nif_stub.
+nrm2(N, X, XStart, Xinc) ->
+    one_vec(N, 0.0, X, XStart, Xinc, 1).
 
 %% @doc Computes the sum of the absolute values of X
 %%  i.e. computes sum |X|
@@ -157,7 +165,8 @@ asum(X) ->
 
 -spec asum(N::integer(),
 	    X::vec(), XStart::integer(), Xinc::integer()) -> float().
-asum(_N, _X, _XStart, _Xinc) -> ?nif_stub.
+asum(N, X, XStart, Xinc) ->
+    one_vec(N, 0.0, X, XStart, Xinc, 2).
 
 %% @doc Locates the max value
 %%  (index from Xstart)
@@ -169,7 +178,10 @@ iamax(X) ->
 -spec iamax(N::integer(),
 	     X::vec(), XStart::integer(), Xinc::integer()) ->
 		    {Index::integer(), Max::float()}.
-iamax(_N, _X, _XStart, _Xinc) -> ?nif_stub.
+iamax(N, X, XStart, Xinc) ->
+    one_vec(N, 0.0, X, XStart, Xinc, 3).
+
+one_vec(_N, _Alpha, _X, _XStart, _Xinc, _Op) -> ?nif_stub.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Level 2

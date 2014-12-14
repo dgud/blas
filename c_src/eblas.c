@@ -10,14 +10,9 @@ static ERL_NIF_TERM size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ERL_NIF_TERM drotg(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dscal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM daxpy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dswap(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM ddot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dnrm2(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dasum(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM idamax(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM l1d_1vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+static ERL_NIF_TERM l1d_2vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ErlNifFunc nif_funcs[] = {
     {"from_list", 1, from_list},
@@ -26,14 +21,10 @@ static ErlNifFunc nif_funcs[] = {
 
     {"rotg", 2, drotg},
     {"rot",  9, drot},
-    {"scal", 5, dscal},
     {"copy", 4, dcopy},
-    {"axpy", 8, daxpy},
-    {"swap", 7, dswap},
-    {"dot", 7, ddot},
-    {"nrm2", 4, dnrm2},
-    {"asum", 4, dasum},
-    {"iamax", 4, idamax},
+    {"one_vec", 6, l1d_1vec},
+    {"two_vec", 9, l1d_2vec},
+
 };
 
 static ErlNifResourceType *avec_r;
@@ -185,24 +176,42 @@ static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return atom_ok;
 }
 
-static ERL_NIF_TERM dscal(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM l1d_1vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    unsigned int n, xs, xi;
+    unsigned int op, n, xs;
+    int xi, tmp;
     Avec *ax;
     double *x, alpha;
+    ERL_NIF_TERM res = atom_ok;
 
     if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
     if(!enif_get_double(env, argv[1], &alpha)) return enif_make_badarg(env);
     if(!enif_get_resource(env, argv[2], avec_r, (void **) &ax)) return enif_make_badarg(env);
     if(!enif_get_uint(env, argv[3], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[4], &xi)) return enif_make_badarg(env);
+    if(!enif_get_int(env, argv[4], &xi)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[5], &op)) return enif_make_badarg(env);
     x = ax->v + xs;
     /* array limit checks */
     if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
 
-    cblas_dscal(n, alpha, x, xi);
-
-    return atom_ok;
+    switch(op) {
+    case 0:
+	cblas_dscal(n, alpha, x, xi);
+	break;
+    case 1:
+	res = enif_make_double(env, cblas_dnrm2(n, x, xi));
+	break;
+    case 2:
+	res = enif_make_double(env, cblas_dasum(n, x, xi));
+	break;
+    case 3:
+	tmp = cblas_idamax(n, x, xi);
+	res = enif_make_tuple2(env,
+			       enif_make_uint(env, tmp),
+			       enif_make_double(env, x[tmp]));
+	break;
+    }
+    return res;
 }
 
 
@@ -234,137 +243,40 @@ static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return res;
 }
 
-static ERL_NIF_TERM daxpy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM l1d_2vec(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    unsigned int n, xs, xi, ys, yi;
+    unsigned int op, n, xs, ys;
+    int xi, yi;
     Avec *ax, *ay;
-    double *x, *y, alpha;
+    double *x, *y, alpha, res;
 
     if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
     if(!enif_get_double(env, argv[1], &alpha)) return enif_make_badarg(env);
     if(!enif_get_resource(env, argv[2], avec_r, (void **) &ax)) return enif_make_badarg(env);
     if(!enif_get_uint(env, argv[3], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[4], &xi)) return enif_make_badarg(env);
+    if(!enif_get_int(env, argv[4], &xi)) return enif_make_badarg(env);
     if(!enif_get_resource(env, argv[5], avec_r, (void **) &ay)) return enif_make_badarg(env);
     if(!enif_get_uint(env, argv[6], &ys)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[7], &yi)) return enif_make_badarg(env);
+    if(!enif_get_int(env, argv[7], &yi)) return enif_make_badarg(env);
+    if(!enif_get_uint(env, argv[8], &op)) return enif_make_badarg(env);
     x = ax->v + xs;
     y = ay->v + ys;
     /* array limit checks */
     if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
     if((ys+n*yi-1) > ay->n) return enif_make_badarg(env);
 
-    cblas_daxpy(n, alpha, x, xi, y, yi);
-
+    switch(op) {
+    case 0:
+	cblas_daxpy(n, alpha, x, xi, y, yi);
+	break;
+    case 1:
+	cblas_dswap(n, x, xi, y, yi);
+	break;
+    case 2:
+	res = cblas_ddot(n, x, xi, y, yi);
+	return enif_make_double(env, res);
+    }
     return atom_ok;
-}
-
-static ERL_NIF_TERM dswap(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, xi, ys, yi;
-    Avec *ax, *ay;
-    double *x, *y;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xi)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[4], avec_r, (void **) &ay)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[5], &ys)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[6], &yi)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    y = ay->v + ys;
-    /* array limit checks */
-    if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
-    if((ys+n*yi-1) > ay->n) return enif_make_badarg(env);
-
-    cblas_dswap(n, x, xi, y, yi);
-
-    return atom_ok;
-}
-
-static ERL_NIF_TERM ddot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, xi, ys, yi;
-    Avec *ax, *ay;
-    double *x, *y, res;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xi)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[4], avec_r, (void **) &ay)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[5], &ys)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[6], &yi)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    y = ay->v + ys;
-    /* array limit checks */
-    if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
-    if((ys+n*yi-1) > ay->n) return enif_make_badarg(env);
-
-    res = cblas_ddot(n, x, xi, y, yi);
-
-    return enif_make_double(env, res);
-}
-
-
-static ERL_NIF_TERM dnrm2(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, xi;
-    Avec *ax;
-    double *x, res;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xi)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    /* array limit checks */
-    if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
-
-    res = cblas_dnrm2(n, x, xi);
-
-    return enif_make_double(env, res);
-}
-
-static ERL_NIF_TERM dasum(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, xi;
-    Avec *ax;
-    double *x, res;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xi)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    /* array limit checks */
-    if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
-
-    res = cblas_dasum(n, x, xi);
-
-    return enif_make_double(env, res);
-}
-
-static ERL_NIF_TERM idamax(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, xi, res;
-    Avec *ax;
-    double *x;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xi)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    /* array limit checks */
-    if((xs+n*xi-1) > ax->n) return enif_make_badarg(env);
-
-    res = cblas_idamax(n, x, xi);
-
-    return enif_make_tuple2(env,
-			    enif_make_uint(env, res),
-			    enif_make_double(env, x[res]));
 }
 
 /* ---------------------------------------------------*/
