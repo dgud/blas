@@ -1,0 +1,3 @@
+priv/
+ebin/
+c_src/env.mk

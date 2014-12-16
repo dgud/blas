@@ -112,7 +112,7 @@ value(Idx, Cont) ->
     to_tuple_list_impl(Idx, 1, 0, Cont).
 
 %% @doc Get N values starting at Idx
--spec values(Idx::integer, N::integer(), Cont::cont()) -> Vs::tuple().
+-spec values(Idx::integer(), N::integer(), Cont::cont()) -> Vs::tuple().
 values(Idx, N, Cont) ->
     to_tuple_list_impl(Idx, N, N, Cont).
 
@@ -425,7 +425,7 @@ syr(UpLo, N, Alpha, X, A) ->
 syr(Ord, Uplo, N, Alpha, X, StartX, IncX, A, IncA) ->
     trmv_impl(Ord, Uplo, no_transp, unit, N, A, IncA, X, StartX, IncX, 4, Alpha).
 
-%% @doc Performs a rank-1 update of a symmetric matrix.
+%% @doc Performs a rank-1 update of a symmetric packed matrix.
 %%   alpha*X*X'+A => A
 -spec spr(UpLo::matrix_uplo(), N::integer(), Alpha::float(), X::cont(), A::cont()) -> ok.
 spr(UpLo, N, Alpha, X, A) ->

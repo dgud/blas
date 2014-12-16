@@ -19,8 +19,8 @@ Needs a blas library to link against.
 Status
 ------
 
-First rough implementation, range tests in the nif, Makefiles, tests
-and documentation needs more work.
+First rough implementation, interruptable/dirty scheduler nifs, range tests in the
+nif, Makefiles/configure, tests and documentation needs more work.
 
 Would also be nice to have support for sparse data and LAPACK.
 
