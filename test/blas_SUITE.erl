@@ -225,8 +225,8 @@ vec(A) -> blasd_raw:from_list(A).
 raw_data_types() ->
     I0 = [0.0,1.0,2.0,3.0,4.0,5.0],
     C0 = blasd_raw:from_list(I0),
-    I0 = blasd_raw:to_list(C0),
     6  = blasd_raw:cont_size(C0),
+    I0 = blasd_raw:to_list(C0),
     [{0.0,1.0},{2.0,3.0},{4.0,5.0}] = blasd_raw:to_tuple_list(2, C0),
     {'EXIT', {badarg,_}} = (catch blasd_raw:to_tuple_list(4, C0)),
     0.0 = blasd_raw:value(0,C0),

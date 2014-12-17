@@ -60,19 +60,18 @@ static ErlNifFunc nif_funcs[] = {
 static ErlNifResourceType *avec_r;
 
 typedef struct {
-    unsigned int n;
-    unsigned int dim; /* unused alignment only 64b*/
     double v[1];
 } Avec;
 
 static ERL_NIF_TERM mk_avec(ErlNifEnv *env, unsigned int n, Avec **avec) {
     ERL_NIF_TERM term;
-    *avec = enif_alloc_resource(avec_r, sizeof(avec) + n*sizeof(double));
+    *avec = enif_alloc_resource(avec_r, n*sizeof(double));
     term = enif_make_resource(env, *avec);
     enif_release_resource(*avec);
-    (*avec)->n = n;
     return term;
 }
+
+#define AVEC_SIZE(AV) 	(enif_sizeof_resource(AV) / 8)
 
 /* ---------------------------------------------------*/
 
@@ -121,7 +120,7 @@ static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     ERL_NIF_TERM tail, *tmp;
     Avec *avec = NULL;
     double *arr;
-    unsigned int idx, n, dim, i, j;
+    unsigned int idx, n, dim, i, j, max;
 
     if(!enif_get_uint(env, argv[0], &idx)) return enif_make_badarg(env);
     if(!enif_get_uint(env, argv[1], &n))   return enif_make_badarg(env);
@@ -129,7 +128,8 @@ static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 
     if(!enif_get_resource(env, argv[3], avec_r, (void **) &avec))
 	return enif_make_badarg(env);
-    if(idx+n > avec->n) return enif_make_badarg(env);
+    max = AVEC_SIZE(avec);
+    if(idx+n > max) return enif_make_badarg(env);
 
     if(n == 1 && dim == 0)  /* get_value() */
 	return enif_make_double(env, avec->v[idx]);
@@ -137,7 +137,7 @@ static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if(dim == 0) { /* to_list */
 	tail = enif_make_list(env, 0);
 	arr = avec->v + idx + n-1;
-	for(i=0; i < avec->n; i++) {
+	for(i=0; i < max; i++) {
 	    tail = enif_make_list_cell(env, enif_make_double(env, *arr), tail);
 	    arr -= 1;
 	}
@@ -162,7 +162,7 @@ static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*dim);
     tail = enif_make_list(env, 0);
 
-    for(i=0; i < avec->n / dim; i++) {
+    for(i=0; i < max / dim; i++) {
 	for(j=0; j < dim; j++, arr++) {
 	    tmp[j] = enif_make_double(env, *arr);
 	}
@@ -191,7 +191,7 @@ static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     tail = argv[0];
     for(i=0; i < n; i++) {
 	enif_get_list_cell(env, tail, &hd, &tail);
-	if(!enif_get_uint(env, hd, &idx) || idx >= avec->n)
+	if(!enif_get_uint(env, hd, &idx) || idx >= AVEC_SIZE(avec))
 	    return enif_make_badarg(env);
 	tmp[i] = enif_make_tuple2(env, hd, enif_make_double(env, arr[idx]));
     }
@@ -206,7 +206,7 @@ static ERL_NIF_TERM cont_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 	return enif_make_badarg(env);
     }
 
-    return enif_make_uint(env, avec->n);
+    return enif_make_uint(env, AVEC_SIZE(avec));
 }
 
 static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
@@ -216,7 +216,7 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     Avec *avec = NULL;
     double *arr, temp;
     int i=0;
-    unsigned int idx;
+    unsigned int idx, max;
 
     if(argc == 2) { /* tuple list of values */
 	if(!enif_is_list(env, argv[0]))
@@ -224,13 +224,14 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
 	    return enif_make_badarg(env);
 	arr = avec->v;
+	max = AVEC_SIZE(avec);
 	tail = argv[0];
 	while(!enif_is_empty_list(env, tail)) {
 	    if(!enif_get_list_cell(env, tail, &hd, &tail))
 		return enif_make_badarg(env);
 	    if(!enif_get_tuple(env, hd, &i, &curr) || i != 2)
 		return enif_make_badarg(env);
-	    if(!enif_get_uint(env, curr[0], &idx) || idx >= avec->n)
+	    if(!enif_get_uint(env, curr[0], &idx) || idx >= max)
 		return enif_make_badarg(env);
 	    if(!enif_get_double(env, curr[1], &temp))
 		return enif_make_badarg(env);
@@ -247,7 +248,8 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	    return enif_make_badarg(env);
 	if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
 	    return enif_make_badarg(env);
-	if(idx >= avec->n)
+	max = AVEC_SIZE(avec);
+	if(idx >= max)
 	    return enif_make_badarg(env);
 	arr = avec->v;
 	arr[idx] = temp;
@@ -257,6 +259,7 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     tail = argv[1];
     if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
 	return enif_make_badarg(env);
+    max = AVEC_SIZE(avec);
     arr = avec->v+idx;
     while(!enif_is_empty_list(env, tail)) {
 	if(!enif_get_list_cell(env, tail, &hd, &tail))
@@ -266,7 +269,7 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	*arr = temp;
 	arr++;
 	idx++;
-	if(idx > avec->n)
+	if(idx > max)
 	    return enif_make_badarg(env);
     }
     return atom_ok;
@@ -311,8 +314,8 @@ static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     x = ax->v + xs;
     y = ay->v + ys;
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > (ax->n)) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > (ay->n)) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
+    if((ys+n*abs(yi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
     cblas_drot(n, x, xi, y, xi, c, s);
 
@@ -335,7 +338,7 @@ static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if(!enif_get_uint(env, argv[5], &op)) return enif_make_badarg(env);
     x = ax->v + xs;
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > ax->n) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
     switch(op) {
     case 0:
@@ -373,7 +376,7 @@ static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
     x = ax->v + xs;
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > ax->n) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
     res = mk_avec(env, n, &resv);
     y = resv->v;
@@ -406,8 +409,8 @@ static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     x = ax->v + xs;
     y = ay->v + ys;
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > ax->n) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > ay->n) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
+    if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
 
     switch(op) {
     case 0:
@@ -465,8 +468,8 @@ static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     y = ay->v + ys;
 
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > ax->n) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > ay->n) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
+    if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
 
     switch(op) {
     case 0:
@@ -529,7 +532,7 @@ static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     x = ax->v + xs;
 
     /* array limit checks */
-    if((xs+n*abs(xi)-1) > ax->n) return enif_make_badarg(env);
+    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
     switch(op) {
     case 0:
