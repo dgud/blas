@@ -50,6 +50,13 @@ data_types() ->
     I0 = blas:to_list(M0),
     I0T = blas:to_tuple_list(M0),
     {3.0,4.0,5.0} = blas:values(3, 3, M0),
+
+    CC0 = blas:set_start(1, blas:vec_from_list(lists:duplicate(4, 9.9))),
+    CC  = blas:copy(C0#{start:=1, inc:=2, n:=2}, CC0),
+    [9.9,1.0,3.0,9.9] = blas:to_list(CC),
+    _ = blas:copy(C0#{start:=2, inc:=2, n:=2},  blas:set_start(2,CC0#{destr:=true})),
+    [9.9,9.9,2.0,4.0] = blas:to_list(CC0),
+
     ok.
 
 level1() ->
@@ -254,6 +261,9 @@ raw_data_types() ->
     ok = blasd_raw:update([{0,0.0}, {4,0.4}], C0),
     [0.0,0.1,0.2,0.3,0.4,0.5] = blasd_raw:to_list(C0),
     {'EXIT', {badarg,_}} = (catch blasd_raw:update([{0,0.0}, {4,0.4,234}], C0)),
+
+    ok = blasd_raw:copy(2, C0, 1, 2, CC = vec(lists:duplicate(4, 9.9)), 1, 1),
+    [9.9,0.1,0.3,9.9] = blasd_raw:to_list(CC),
     ok.
 
 raw_level1() ->

@@ -46,6 +46,7 @@ static ErlNifFunc nif_funcs[] = {
     {"rotg", 2, drotg},
     {"rot",  9, drot},
     {"copy", 4, dcopy},
+    {"copy", 7, dcopy},
     {"one_vec", 6, l1d_1cont},
     {"two_vec", 9, l1d_2cont},
 
@@ -363,9 +364,9 @@ static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 
 static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    unsigned int i, n, xs;
-    int xi;
-    Avec *ax, *resv;
+    unsigned int n, xs, ys = 0;
+    int xi, yi=1;
+    Avec *ax, *ay;
     double *x, *y;
     ERL_NIF_TERM res;
 
@@ -373,19 +374,22 @@ static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
     if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
     if(!enif_get_int(env, argv[3], &xi)) return enif_make_badarg(env);
-
-    x = ax->v + xs;
     /* array limit checks */
     if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
-    res = mk_avec(env, n, &resv);
-    y = resv->v;
-
-    for(i=0; i < n; i++) {
-	*y = *x;
-	y += 1;
-	x += xi;
+    if(argc == 4) {  /* copy to new vector */
+	res = mk_avec(env, n, &ay);
+    } else {
+	if(!enif_get_resource(env, argv[4], avec_r, (void **) &ay)) return enif_make_badarg(env);
+	if(!enif_get_uint(env, argv[5], &ys)) return enif_make_badarg(env);
+	if(!enif_get_int(env, argv[6], &yi)) return enif_make_badarg(env);
+	if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
+	res = atom_ok;
     }
+
+    x = ax->v + xs;
+    y = ay->v + ys;
+    cblas_dcopy(n, x, xi, y, yi);
 
     return res;
 }

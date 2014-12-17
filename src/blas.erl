@@ -37,7 +37,7 @@
 	  rotg/2,
 	  rot/3,rot/4,
 	  scal/2,
-	  copy/1,
+	  copy/1,copy/2,
 	  axpy/3,
 	  swap/2,
 	  dot/2,
@@ -102,7 +102,8 @@ set_start(Start, Vec) ->
     Vec#{start:=Start}.
 
 %% @doc Set interleave size on a vector
--spec set_inc(Inc::integer(), Vec::vec()) -> vec().
+-spec set_inc(Inc::integer(), Vec::vec()) -> vec();
+	     (Inc::integer(), Vec::mat()) -> mat().
 set_inc(Inc, Vec) ->
     Vec#{inc:=Inc}.
 
@@ -206,13 +207,23 @@ to_tuple_list(TS, #{v:=Vec}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% @doc Copy values in the vector
+%% @doc Copy values from the vector
 %% Start at 'start' pos and step 'inc' and copy n values
 -spec copy(X::vec()) -> vec().
 copy(X=#{type:=vector, start:=X0, inc:=Inc, v:=Vec0}) ->
     N    = cont_size(X),
     Vec1 = ?IMPL:copy(N, Vec0, X0, Inc),
     def_vec(Vec1).
+
+%% @doc Copy values from the vector to another
+%% Start at 'start' pos and step 'inc' and copy n values
+-spec copy(X::vec(), Y::vec()) -> Y1::vec().
+copy(X=#{type:=vector, start:=X0, inc:=XInc, v:=XV},
+     Y=#{type:=vector, start:=Y0, inc:=YInc}) ->
+    N = cont_size(X),
+    YV = do_copy(Y),
+    ?IMPL:copy(N, XV, X0, XInc, YV, Y0, YInc),
+    Y#{v:=YV}.
 
 %% @doc Swap vectors
 %% Given two vectors x and y, the swap routines return vectors y
@@ -566,11 +577,10 @@ syr2k(Alpha,
 order(#{op:=no_transp, m:=M, n:=N}) -> {M,N};
 order(#{m:=M, n:=N}) -> {N,M}.
 
+%% Size requirements should be checked in nif code
 cont_size(#{n:=all, start:= X0, v:=Vec, inc:=Inc}) ->
     (?IMPL:cont_size(Vec) - X0) div Inc;
-cont_size(#{n:=N, start:= X0, v:=Vec, inc:=Inc}) ->
-    All = ?IMPL:cont_size(Vec),
-    (N*Inc + X0) =< All orelse error(badarg),
+cont_size(#{n:=N}) ->
     N.
 
 check_triangular(#{uplo:=undefined}) -> error({badarg, triangle_not_set});

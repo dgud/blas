@@ -48,7 +48,7 @@
 	  rotg/2,
 	  rot/3, rot/9,
 	  scal/2, scal/5,
-	  copy/1, copy/4,
+	  copy/1, copy/4, copy/2, copy/7,
 	  axpy/3, axpy/8,
 	  swap/7,
 	  dot/2, dot/7,
@@ -179,10 +179,25 @@ copy(X) ->
     N = cont_size(X),
     copy(N, X, 0, 1).
 
-%% @doc Copy values in the vector
+%% @doc Copy values in the vector to a new vector
 %% Start at StartX pos and step Xinc
 -spec copy(N::integer(), X::cont(), XStart::integer(), Xinc::integer()) -> cont().
 copy(_N, _X, _XStart, _Xinc) -> ?nif_stub.
+
+%% @doc Copy values from a vector to another vector
+%% %% X => Y
+-spec copy(X::cont(), Y::cont()) -> ok.
+copy(X, Y) ->
+    N = cont_size(X),
+    copy(N, X, 0, 1, Y, 0, 1).
+
+%% @doc Copy values from a vector to another
+%% X => Y
+-spec copy(N::integer(),
+	   X::cont(), XStart::integer(), Xinc::integer(),
+	   Y::cont(), YStart::integer(), Yinc::integer()) -> ok.
+
+copy(_N, _X, _XStart, _Xinc, _Y, _YStart, _Yinc) -> ?nif_stub.
 
 %% @doc Compute alpha*X+Y=>Y
 -spec axpy(Alpha::float(), X::cont(), Y::cont()) -> ok.
