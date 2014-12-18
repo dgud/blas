@@ -165,8 +165,10 @@ mat_from_list(M,N,List) ->
     def_mat(M,N,?IMPL:from_list(List)).
 
 %% @doc Returns the matrix dimensions
-mat_size(#{type:=matrix, m:=M, n:=N}) ->
-    {M,N}.
+%% Takes op in to consideration such that an MxN matrix
+%% with an op set to transpose returns NxM
+mat_size(#{op:=no_transp, m:=M, n:=N}) -> {M,N};
+mat_size(#{m:=M, n:=N}) -> {N,M}.
 
 %% @doc Set which part of the matrix is triangular
 %% or which part of a symmetrical matrix should be used
@@ -474,8 +476,8 @@ gemm(Alpha,
      B=#{order:=Ord, op:=OpB, inc:=BInc, v:=BV},
      Beta, C=#{order:=Ord, m:=M, n:=N, inc:=CInc}) ->
     CV = do_copy(C),
-    {M,K} = order(A),
-    {K,N} = order(B),
+    {M,K} = mat_size(A),
+    {K,N} = mat_size(B),
     ?IMPL:gemm(Ord, OpA, OpB, M, N, K,
 	       Alpha, AV, AInc, BV, BInc, Beta, CV, CInc),
     C#{v:=CV}.
@@ -547,7 +549,7 @@ syrk(Alpha,
      Beta, C=#{order:=Ord, uplo:=UpLo, m:=N, n:=N, inc:=CInc}) ->
     check_triangular(C),
     CV = do_copy(C),
-    {N, K} = order(A),
+    {N, K} = mat_size(A),
     ?IMPL:syrk(Ord, UpLo, Op, N, K, Alpha, AV, AInc, Beta, CV, CInc),
     C#{v:=CV}.
 
@@ -567,15 +569,13 @@ syr2k(Alpha,
       Beta, C=#{order:=Ord, uplo:=UpLo, m:=N, n:=N, inc:=CInc}) ->
     check_triangular(C),
     CV = do_copy(C),
-    {N, K} = order(A),
-    {N, K} = order(B),
+    {N, K} = mat_size(A),
+    {N, K} = mat_size(B),
     ?IMPL:syr2k(Ord, UpLo, Op, N, K, Alpha, AV, AInc, BV, BInc, Beta, CV, CInc),
     C#{v:=CV}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-order(#{op:=no_transp, m:=M, n:=N}) -> {M,N};
-order(#{m:=M, n:=N}) -> {N,M}.
 
 %% Size requirements should be checked in nif code
 cont_size(#{n:=all, start:= X0, v:=Vec, inc:=Inc}) ->
