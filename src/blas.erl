@@ -22,8 +22,8 @@
 -module(blas).
 
 %% Data handling
--export([vec_from_list/1,
-	 mat_from_list/1, mat_from_list/3, mat_from_vec/3,
+-export([vec/2, vec_from_list/1,
+	 mat/3, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
 	 to_list/1, to_tuple_list/1, to_tuple_list/2,
 	 vec_size/1,mat_size/1,
 	 value/2, values/2, values/3,
@@ -91,6 +91,11 @@
 
 %% API Data conversion
 %%
+%% @doc Create a vector of size N and possibly zero the values
+-spec vec(N::non_neg_integer()) -> vec().
+vec(N) when N > 0 ->
+    def_vec(?IMPL:make_cont(N, true)).
+
 %% @doc Create a vector from a list of values
 -spec vec_from_list(List::[tuple()]|list(float())) -> vec().
 vec_from_list(List) ->
@@ -148,6 +153,11 @@ update(Idx, Vs, Vec) ->
 update(Vs, Vec) ->
     ?IMPL:update(Vs, Res = do_copy(Vec)),
     Vec#{v:=Res}.
+
+%% @doc Create a matrix of size M*N and possibly zero the values
+-spec mat(M::non_neg_integer(), N::non_neg_integer()) -> vec().
+mat(M, N) when M > 0, N > 0 ->
+    def_vec(?IMPL:make_cont(M*N, true)).
 
 %% @doc Convert a vec to a matrix
 -spec mat_from_vec(M::integer(), N::integer(), Vec::vec()) -> mat().

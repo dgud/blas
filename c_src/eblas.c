@@ -3,6 +3,7 @@
 #include <atlas/cblas.h>
 
 static ERL_NIF_TERM atom_ok;
+static ERL_NIF_TERM atom_true;
 
 static ERL_NIF_TERM atom_rowmaj;
 static ERL_NIF_TERM atom_colmaj;
@@ -20,6 +21,7 @@ static ERL_NIF_TERM atom_right;
 static ERL_NIF_TERM atom_nonunit;
 static ERL_NIF_TERM atom_unit;
 
+static ERL_NIF_TERM make_cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
@@ -36,6 +38,7 @@ static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 static ErlNifFunc nif_funcs[] = {
+    {"make_cont", 2, make_cont},
     {"from_list", 1, from_list},
     {"to_tuple_list_impl", 4, to_values},
     {"cont_size", 1, cont_size},
@@ -75,6 +78,24 @@ static ERL_NIF_TERM mk_avec(ErlNifEnv *env, unsigned int n, Avec **avec) {
 #define AVEC_SIZE(AV) 	(enif_sizeof_resource(AV) / 8)
 
 /* ---------------------------------------------------*/
+
+static ERL_NIF_TERM make_cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    unsigned int n;
+    ERL_NIF_TERM res;
+    Avec *avec = NULL;
+    double *data;
+
+    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
+    res = mk_avec(env, n, &avec);
+
+    if(enif_is_identical(argv[1], atom_true)) {
+	data = avec->v;
+	memset(data, 0, sizeof(double)*n);
+    }
+
+    return res;
+}
 
 static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
@@ -690,6 +711,7 @@ static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 {
     atom_ok = enif_make_atom(env,"ok");
+    atom_true = enif_make_atom(env,"true");
 
     atom_notransp = enif_make_atom(env,"no_transp");
     atom_transpose = enif_make_atom(env,"transp");

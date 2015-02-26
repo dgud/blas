@@ -36,7 +36,8 @@
 -module(blasd_raw).
 
 %% Data handling
--export([from_list/1,
+-export([make_cont/2,
+	 from_list/1,
 	 to_list/1, to_tuple_list/2,
 	 cont_size/1,
 	 value/2, values/2, values/3,
@@ -88,6 +89,11 @@ nif_stub_error(Line) ->
 
 %% API Data conversion
 %%
+
+%% @doc Create a container of N size (and zero)
+-spec make_cont(N::non_neg_integer(), Zero::boolean()) -> cont().
+make_cont(_N, _Zero) -> ?nif_stub.
+
 %% @doc Create a container from a list of values
 -spec from_list(List::[tuple()]|list(float())) -> cont().
 from_list(_List) -> ?nif_stub.
