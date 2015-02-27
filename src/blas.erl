@@ -22,7 +22,7 @@
 -module(blas).
 
 %% Data handling
--export([vec/1, vec_from_list/1,
+-export([vec/1, vec_from_list/1, vec_from_mat/1,
 	 mat/2, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
 	 to_list/1, to_tuple_list/1, to_tuple_list/2,
 	 vec_size/1,mat_size/1,
@@ -101,6 +101,12 @@ vec(N) when N > 0 ->
 vec_from_list(List) ->
     def_vec(?IMPL:from_list(List)).
 
+%% @doc Create a vector from a matrix
+-spec vec_from_mat(Mat::mat()) -> vec().
+vec_from_mat(Mat) ->
+    V = do_copy(Mat),
+    def_vec(V).
+
 %% @doc Set start index on a vector
 -spec set_start(Start::integer(), Vec::vec()) -> vec().
 set_start(Start, Vec) ->
@@ -161,7 +167,8 @@ mat(M, N) when M > 0, N > 0 ->
 
 %% @doc Convert a vec to a matrix
 -spec mat_from_vec(M::integer(), N::integer(), Vec::vec()) -> mat().
-mat_from_vec(M, N, #{type:=vector, v:=V}) ->
+mat_from_vec(M, N, V0=#{}) ->
+    V = do_copy(V0),
     def_mat(M,N,V).
 
 %% @doc Convert a tuple list to a matrix
