@@ -209,13 +209,17 @@ to_tuple_list(TS, #{v:=Vec}) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% @doc Copy values from the vector
-%% Start at 'start' pos and step 'inc' and copy n values
+%% @doc Copy values from a vector or matrix
+%% Start at 'start' pos and step 'inc' and copy n (or m*n) values
 -spec copy(X::vec()) -> vec().
 copy(X=#{type:=vector, start:=X0, inc:=Inc, v:=Vec0}) ->
     N    = cont_size(X),
     Vec1 = ?IMPL:copy(N, Vec0, X0, Inc),
-    def_vec(Vec1).
+    def_vec(Vec1);
+
+copy(#{type:=matrix, m:=M, n:=N, v:=Vec0}) ->
+    Vec1 = ?IMPL:copy(Vec0),
+    def_mat(M,N,Vec1).
 
 %% @doc Copy values from the vector to another
 %% Start at 'start' pos and step 'inc' and copy n values
