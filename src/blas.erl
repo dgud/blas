@@ -22,8 +22,8 @@
 -module(blas).
 
 %% Data handling
--export([vec/2, vec_from_list/1,
-	 mat/3, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
+-export([vec/1, vec_from_list/1,
+	 mat/2, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
 	 to_list/1, to_tuple_list/1, to_tuple_list/2,
 	 vec_size/1,mat_size/1,
 	 value/2, values/2, values/3,
