@@ -161,7 +161,8 @@ mat(M, N) when M > 0, N > 0 ->
 
 %% @doc Convert a vec to a matrix
 -spec mat_from_vec(M::integer(), N::integer(), Vec::vec()) -> mat().
-mat_from_vec(M, N, #{type:=vector, v:=V}) ->
+mat_from_vec(M, N, V0=#{}) ->
+    V = do_copy(V0),
     def_mat(M,N,V).
 
 %% @doc Convert a tuple list to a matrix
