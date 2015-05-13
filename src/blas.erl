@@ -23,7 +23,7 @@
 
 %% Data handling
 -export([vec/1, vec_from_list/1, vec_from_mat/1,
-	 mat/2, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
+	 mat/2, mat/3, mat_from_list/1, mat_from_list/3, mat_from_vec/3,
 	 to_list/1, to_tuple_list/1, to_tuple_list/2,
 	 vec_size/1,mat_size/1,
 	 value/2, values/2, values/3,
@@ -160,10 +160,19 @@ update(Vs, Vec) ->
     ?IMPL:update(Vs, Res = do_copy(Vec)),
     Vec#{v:=Res}.
 
-%% @doc Create a matrix of size M*N and possibly zero the values
+%% @doc Create a matrix of size M*N and zero the values
 -spec mat(M::non_neg_integer(), N::non_neg_integer()) -> vec().
 mat(M, N) when M > 0, N > 0 ->
     def_mat(M,N,?IMPL:make_cont(M*N, true)).
+
+%% @doc Create a matrix of size M*N and fill with value from fun/2
+%% I ranges from 0..M-1 and J 0..N-1
+-spec mat(M::non_neg_integer(), N::non_neg_integer(), Fun) -> mat()
+    when Fun::fun((I::integer(),J::integer()) -> float()).
+mat(M, N, Fun) when M > 0, N > 0 ->
+    Mat = def_mat(M,N,?IMPL:make_cont(M*N, false)),
+    fill_matrix(M,N,Fun,Mat#{destr:=true}),
+    Mat.
 
 %% @doc Convert a vec to a matrix
 -spec mat_from_vec(M::integer(), N::integer(), Vec::vec()) -> mat().
@@ -631,3 +640,35 @@ def_mat(M,N,Vec) ->
     destr => false,
     v => Vec
    }.
+
+fill_matrix(M, N, F, Mat) when is_function(F)->
+    Ref = erlang:make_ref(),
+    NoWorkers = erlang:system_info(schedulers_online),
+    RowsPerWorker = max(1, M div NoWorkers),
+    _ = fill_matrix_func_1pp(M-1, RowsPerWorker, N, Ref, F, Mat),
+    wait(min(NoWorkers,M), Ref),
+    Mat.
+
+fill_matrix_func_1pp(I, Rows, N, Ref, F, Mat) when I >= 0 ->
+    Parent = self(),
+    spawn(fun() ->
+		  fill_matrix_func_2pp(N-1, I, N, max(0, I - Rows), F, Mat, []),
+		  Parent ! {Ref, I}
+	  end),
+    fill_matrix_func_1pp(I-Rows, Rows, N, Ref, F, Mat);
+fill_matrix_func_1pp(_M, _Rows, _N, _Ref, _F, _Mat) ->
+    ok.
+
+fill_matrix_func_2pp(J, I, N, Stop, F, Mat, Acc) when J >= 0 ->
+    fill_matrix_func_2pp(J-1, I, N, Stop, F, Mat, [F(I,J)|Acc]);
+fill_matrix_func_2pp(_, I, N, Stop, F, Mat0, Acc) ->
+    Mat = blas:update(I*N, Acc, Mat0),
+    if I > Stop -> fill_matrix_func_2pp(N-1, I-1, N, Stop, F, Mat, []);
+       true -> Mat
+    end.
+
+wait(M, Ref) when M > 0 ->
+    receive
+	{Ref, _I} -> wait(M-1,Ref)
+    end;
+wait(_, _) -> ok.
