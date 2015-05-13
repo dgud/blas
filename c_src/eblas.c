@@ -3,6 +3,8 @@
 #include "erl_nif.h"
 #include <atlas/cblas.h>
 
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 static ERL_NIF_TERM atom_ok;
 static ERL_NIF_TERM atom_true;
 
@@ -115,6 +117,8 @@ static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 	dim = 1;
     res = mk_avec(env, len*dim, &avec);
 
+    enif_consume_timeslice(env, (len*dim)/1000);
+
     data = avec->v;
     if(dim == 1) {
 	for(i=0; i<len; i++) {
@@ -152,6 +156,9 @@ static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if(!enif_get_resource(env, argv[3], avec_r, (void **) &avec))
 	return enif_make_badarg(env);
     max = AVEC_SIZE(avec);
+
+    enif_consume_timeslice(env, max/1000);
+
     if(idx+n > max) return enif_make_badarg(env);
 
     if(n == 1 && dim == 0)  /* get_value() */
@@ -209,6 +216,7 @@ static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
 	return enif_make_badarg(env);
 
+    enif_consume_timeslice(env, n/1000);
     tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*n);
     arr = avec->v;
     tail = argv[0];
@@ -238,7 +246,7 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
     const ERL_NIF_TERM *curr;
     Avec *avec = NULL;
     double *arr, temp;
-    int i=0;
+    int i=0, n=0;
     unsigned int idx, max;
 
     if(argc == 2) { /* tuple list of values */
@@ -259,7 +267,9 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	    if(!enif_get_double(env, curr[1], &temp))
 		return enif_make_badarg(env);
 	    arr[idx] = temp;
+	    n++;
 	}
+	enif_consume_timeslice(env, n/1000);
 	return atom_ok;
     }
     /* update(Idx, V|[Vs], Vec) */
@@ -292,9 +302,11 @@ static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 	*arr = temp;
 	arr++;
 	idx++;
+	n++;
 	if(idx > max)
 	    return enif_make_badarg(env);
     }
+    enif_consume_timeslice(env, n/1000);
     return atom_ok;
 }
 
@@ -340,6 +352,7 @@ static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
     if((ys+n*abs(yi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
 
+    enif_consume_timeslice(env, n/1000);
     cblas_drot(n, x, xi, y, xi, c, s);
 
     return atom_ok;
@@ -380,6 +393,7 @@ static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 			       enif_make_double(env, x[tmp]));
 	break;
     }
+    enif_consume_timeslice(env, n/1000);
     return res;
 }
 
@@ -412,6 +426,7 @@ static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     x = ax->v + xs;
     y = ay->v + ys;
     cblas_dcopy(n, x, xi, y, yi);
+    enif_consume_timeslice(env, n/1000);
 
     return res;
 }
@@ -438,6 +453,7 @@ static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
     if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
 
+    enif_consume_timeslice(env, n/1000);
     switch(op) {
     case 0:
 	cblas_daxpy(n, alpha, x, xi, y, yi);
@@ -511,6 +527,7 @@ static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     case 5:
 	cblas_dspr2(order, uplo, n, alpha, x, xi, y, yi, a); break;
     }
+    enif_consume_timeslice(env, MAX(1,m)*n/1000);
     return atom_ok;
 }
 
@@ -574,6 +591,8 @@ static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     case 5:
 	cblas_dspr(order, uplo, n, alpha, x, xi, a); break;
     }
+
+    enif_consume_timeslice(env, n*n/1000);
     return atom_ok;
 }
 
@@ -704,6 +723,8 @@ static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 	cblas_dsyrk(order,uplo,tb, n,k, alpha, a,lda, beta, b,ldb);
 	break; }
     }
+
+    enif_consume_timeslice(env, MAX(m,k)*n/1000);
     return atom_ok;
 }
 
