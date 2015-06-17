@@ -92,7 +92,13 @@ static ERL_NIF_TERM make_cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
     res = mk_avec(env, n, &avec);
 
-    if(enif_is_identical(argv[1], atom_true)) {
+    if(enif_is_binary(env, argv[1])) {
+	ErlNifBinary bin;
+	enif_inspect_binary(env, argv[1], &bin);
+	if(n*sizeof(double) != bin.size)
+	    return enif_make_badarg(env);
+	memcpy(avec->v, bin.data, sizeof(double)*n);
+    } else if(enif_is_identical(argv[1], atom_true)) {
 	data = avec->v;
 	memset(data, 0, sizeof(double)*n);
     }

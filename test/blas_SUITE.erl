@@ -11,7 +11,11 @@ test() ->
     ok.
 
 data_types() ->
+    5 = length([ok|| 0.0 <- blas:to_list(blas:vec(5))]),
+
     I0 = [0.0,1.0,2.0,3.0,4.0,5.0],
+    V0 = blas:vec(<< <<F:64/float-native >> || F <- I0>>),
+    I0 = blas:to_list(V0),
     C0 = blas:vec_from_list(I0),
     I0 = blas:to_list(C0),
     6  = blas:vec_size(C0),
@@ -230,7 +234,12 @@ raw() ->
 vec(A) -> blasd_raw:from_list(A).
 
 raw_data_types() ->
+    CR = blasd_raw:make_cont(5, true),
+    5 = length([ok|| 0.0 <- blasd_raw:to_list(CR)]),
+
     I0 = [0.0,1.0,2.0,3.0,4.0,5.0],
+    CRI0 = blasd_raw:make_cont(length(I0), << <<F:64/float-native >> || F <- I0>>),
+    I0 = blasd_raw:to_list(CRI0),
     C0 = blasd_raw:from_list(I0),
     6  = blasd_raw:cont_size(C0),
     I0 = blasd_raw:to_list(C0),

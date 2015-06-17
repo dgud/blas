@@ -90,8 +90,8 @@ nif_stub_error(Line) ->
 %% API Data conversion
 %%
 
-%% @doc Create a container of N size (and zero)
--spec make_cont(N::non_neg_integer(), Zero::boolean()) -> cont().
+%% @doc Create a container of N size (and zero or copy values)
+-spec make_cont(N::non_neg_integer(), ZeroOrCopy::boolean()|binary()) -> cont().
 make_cont(_N, _Zero) -> ?nif_stub.
 
 %% @doc Create a container from a list of values

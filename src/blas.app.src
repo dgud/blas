@@ -1,7 +1,7 @@
-{application, eblas, [
-	{description, ""},
-	{vsn, "0.1.0"},
-	{modules, []},
+{application, blas, [
+	{description, "Erlang blas api"},
+	{vsn, "0.2.0"},
+	{modules, [blas, blasd_raw]},
 	{registered, []},
 	{applications, [
 		kernel,

@@ -91,10 +91,14 @@
 
 %% API Data conversion
 %%
-%% @doc Create a vector of size N and possibly zero the values
--spec vec(N::non_neg_integer()) -> vec().
-vec(N) when N > 0 ->
-    def_vec(?IMPL:make_cont(N, true)).
+%% @doc Create a vector of N zeros
+%%      or create a vector of the binary containing 64b native floats.
+-spec vec(N::non_neg_integer()|binary()) -> vec().
+vec(N) when is_integer(N), N > 0 ->
+    def_vec(?IMPL:make_cont(N, true));
+vec(Bin) when is_binary(Bin) ->
+    N = byte_size(Bin) div 8,
+    def_vec(?IMPL:make_cont(N, Bin)).
 
 %% @doc Create a vector from a list of values
 -spec vec_from_list(List::[tuple()]|list(float())) -> vec().
@@ -154,7 +158,7 @@ update(Idx, Vs, Vec) ->
     ?IMPL:update(Idx, Vs, Res = do_copy(Vec)),
     Vec#{v:=Res}.
 
-%% @doc Update values at indencies
+%% @doc Update values at indexes
 -spec update(list({Idx::integer(), Value::float()}), Vec::vec()|mat()) -> vec()|mat().
 update(Vs, Vec) ->
     ?IMPL:update(Vs, Res = do_copy(Vec)),
