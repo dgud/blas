@@ -73,7 +73,6 @@
 	  syr2k/7, syr2k/13
 	]).
 
--opaque(cont).
 -type cont() :: binary(). %% A data container can be a vector or matrix
 -type matrix_op() :: no_transp|transp|conj_transp.
 -type matrix_order() :: row_maj|col_maj.

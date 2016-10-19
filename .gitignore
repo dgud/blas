@@ -1,3 +1,4 @@
 priv/
 ebin/
-c_src/env.mk
+doc/
+_build/

@@ -1,16 +1,20 @@
 -module(blas_SUITE).
-
 -compile(export_all).
 
+all() -> [{group, raw}, {group, blas}].
+
+groups() ->
+    [{raw, [], raw()}, {blas, [], blas()}].
+
+raw() -> [raw_data_types, raw_level1, raw_level2, raw_level3].
+
+blas() -> [data_types, level1, level2, level3].
+
 test() ->
-    raw(),
-    data_types(),
-    level1(),
-    level2(),
-    level3(),
+    [?MODULE:Test(dummy) || Test <- raw() ++ blas()],
     ok.
 
-data_types() ->
+data_types(_) ->
     5 = length([ok|| 0.0 <- blas:to_list(blas:vec(5))]),
 
     I0 = [0.0,1.0,2.0,3.0,4.0,5.0],
@@ -63,7 +67,7 @@ data_types() ->
 
     ok.
 
-level1() ->
+level1(_) ->
     D0 = blas:vec_from_list([1.0,2.0,3.0,4.0,5.0]),
     AllOnes = blas:vec_from_list(lists:duplicate(5, 1.0)),
     AllTwos = blas:vec_from_list(lists:duplicate(5, 2.0)),
@@ -90,7 +94,7 @@ level1() ->
     {4,5.0} = blas:iamax(blas:set_inc(1, blas:set_dim(5, D5))),
     ok.
 
-level2() ->
+level2(_) ->
     Mat0 = [1.0,2.0,3.0,
 	    2.0,2.0,4.0,
 	    3.0,2.0,2.0,
@@ -158,7 +162,7 @@ level2() ->
 
     ok.
 
-level3() ->
+level3(_) ->
     A0 = [1.0, -3.0,
 	 2.0,  4.0,
 	 1.0, -1.0,
@@ -224,16 +228,10 @@ level3() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-raw() ->
-    raw_data_types(),
-    raw_level1(),
-    raw_level2(),
-    raw_level3().
-
 
 vec(A) -> blasd_raw:from_list(A).
 
-raw_data_types() ->
+raw_data_types(_) ->
     CR = blasd_raw:make_cont(5, true),
     5 = length([ok|| 0.0 <- blasd_raw:to_list(CR)]),
 
@@ -275,7 +273,7 @@ raw_data_types() ->
     [9.9,0.1,0.3,9.9] = blasd_raw:to_list(CC),
     ok.
 
-raw_level1() ->
+raw_level1(_) ->
     I0 = [1.0,2.0,3.0,4.0,5.0],
     AllOnes = vec(lists:duplicate(5, 1.0)),
     AllTwos = vec(lists:duplicate(5, 2.0)),
@@ -309,7 +307,7 @@ raw_level1() ->
     {4,5.0} = blasd_raw:iamax(D5),
     ok.
 
-raw_level2() ->
+raw_level2(_) ->
     Mat0 = [1.0,2.0,3.0,
 	    2.0,2.0,4.0,
 	    3.0,2.0,2.0,
@@ -377,7 +375,7 @@ raw_level2() ->
 
     ok.
 
-raw_level3() ->
+raw_level3(_) ->
     A = [1.0, -3.0,
 	 2.0,  4.0,
 	 1.0, -1.0,

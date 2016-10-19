@@ -165,7 +165,7 @@ update(Vs, Vec) ->
     Vec#{v:=Res}.
 
 %% @doc Create a matrix of size M*N and zero the values
--spec mat(M::non_neg_integer(), N::non_neg_integer()) -> vec().
+-spec mat(M::non_neg_integer(), N::non_neg_integer()) -> mat().
 mat(M, N) when M > 0, N > 0 ->
     def_mat(M,N,?IMPL:make_cont(M*N, true)).
 

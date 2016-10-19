@@ -24,6 +24,6 @@ nif, Makefiles/configure, tests and documentation needs more work.
 
 Would also be nice to have support for sparse data and LAPACK.
 
-Currently only limited tested with ATLAS on Ubuntu-14.04
+Currently only limited tested with ATLAS on Ubuntu-14.04 (libatlas-dev package)
 
 
