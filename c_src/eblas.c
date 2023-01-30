@@ -1,775 +1,552 @@
-#include <stdio.h>
-#include <string.h>
-#include "erl_nif.h"
-#include <atlas/cblas.h>
+#include "eblas.h"
+#include "string.h"
+#include <cblas.h>
+#include <complex.h>
+#include "string.h"
 
-#define MAX(a,b) (((a)>(b))?(a):(b))
+//Various utility functions
+//--------------------------------
 
-static ERL_NIF_TERM atom_ok;
-static ERL_NIF_TERM atom_true;
+int translate(ErlNifEnv* env, const ERL_NIF_TERM* terms, const etypes* format, ...){
+    va_list valist;
+    va_start(valist, format);
+    int valid = 1;
 
-static ERL_NIF_TERM atom_rowmaj;
-static ERL_NIF_TERM atom_colmaj;
+    for(int curr=0; format[curr] != e_end; curr++){
+        debug_write("Unwrapping term number %i\n", curr);
+        switch(format[curr]){
+            case e_int:
+                valid = enif_get_int(env, terms[curr], va_arg(valist, int*));
+            break;
+            case e_lint:
+                valid = enif_get_int64(env, terms[curr], va_arg(valist, ErlNifSInt64*));
+            break;
+            
+            case e_float:
+                double val;
+                float* dest = va_arg(valist, float*);
+                valid = enif_get_double(env, terms[curr], &val);
+                if(valid)
+                    *dest = (float) val;    
+            break;
+            case e_double:
+                valid = enif_get_double(env, terms[curr], va_arg(valist, double*));
+            break;
 
-static ERL_NIF_TERM atom_notransp;
-static ERL_NIF_TERM atom_transpose;
-static ERL_NIF_TERM atom_conjugatet;
+            case e_ptr:
+                valid = get_c_binary(env, terms[curr], va_arg(valist, c_binary*));
+            break;
+            case e_cste_ptr:
+                valid = get_cste_binary(env, terms[curr], va_arg(valist, cste_c_binary*));
+            break;
 
-static ERL_NIF_TERM atom_upper;
-static ERL_NIF_TERM atom_lower;
+            default:
+                valid = 0;
+            break;
+        }
 
-static ERL_NIF_TERM atom_left;
-static ERL_NIF_TERM atom_right;
+        if(!valid){
+            va_end(valist);
+            return curr + 1;
+        }
+    }
+    
+    va_end(valist);
+    return 0;
+}
 
-static ERL_NIF_TERM atom_nonunit;
-static ERL_NIF_TERM atom_unit;
+// C_binary definitions/functions
 
-static ERL_NIF_TERM make_cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM cont_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+//Used for debug purpose.
+//Likely thread unsafe.
+//Usage: debug_write("A double: %lf, an int:%d", double_val, int_val);
+int debug_write(const char* fmt, ...){
+    FILE* fp = fopen("priv/debug.txt", "a");
+    va_list args;
 
-static ERL_NIF_TERM drotg(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+    va_start(args, fmt);
+    vfprintf(fp, fmt, args);
+    va_end(args);
 
-static ErlNifFunc nif_funcs[] = {
-    {"make_cont", 2, make_cont},
-    {"from_list", 1, from_list},
-    {"to_tuple_list_impl", 4, to_values},
-    {"cont_size", 1, cont_size},
-    {"values", 2, to_idx_list},
-    {"update", 2, cont_update},
-    {"update", 3, cont_update},
+    fclose(fp);
+    return 1;
+}
 
-    {"rotg", 2, drotg},
-    {"rot",  9, drot},
-    {"copy", 4, dcopy},
-    {"copy", 7, dcopy},
-    {"one_vec", 6, l1d_1cont},
-    {"two_vec", 9, l1d_2cont},
+int get_c_binary(ErlNifEnv* env, const ERL_NIF_TERM term, c_binary* result){
+    int arity;
+    const ERL_NIF_TERM* terms;
+    void* resource;
 
-    {"gemv_impl", 15, dgemv},
-    {"trmv_impl", 11, dtrmv},
-    {"trmv_impl", 12, dtrmv},
+    // Return false if: incorect record size, resource size does not match
+    int b =  enif_get_tuple(env, term, &arity, &terms)
+                && arity == 4
+                && enif_get_uint(env, terms[1], &result->size)
+                && enif_get_uint(env, terms[2], &result->offset)
+                && enif_get_resource(env, terms[3], c_binary_resource, &resource)
+                && result->size == enif_sizeof_resource(resource);
 
-    {"gemm_impl", 15, dgemm},
-    {"trmm_impl", 15, dgemm},
+    result->ptr = (unsigned char*) resource;
+    
+    return b;
+}
+
+// *UnIVeRSAl pointer to an erlang type; currently, binary/double/c_binarry.
+int get_cste_binary(ErlNifEnv* env, const ERL_NIF_TERM term, cste_c_binary* result){
+    if(enif_is_binary(env, term)){
+        // Read a binary.
+        ErlNifBinary ebin;
+        if(!enif_inspect_binary(env, term, &ebin))
+            return 0;
+        
+        result->size    = ebin.size;
+        result->offset  = 0;
+        result->ptr     = ebin.data;
+    }
+    else{
+        // Read a cbin.
+        c_binary cbin;
+        if(get_c_binary(env, term, &cbin)){
+            result->size    = cbin.size;
+            result->offset  = cbin.offset;
+            result->ptr     = (const unsigned char*) cbin.ptr;
+        }
+        else{
+            // Read a double.
+            if(!enif_get_double(env, term, &result->tmp))
+                return 0;
+
+            result->size    = 8;
+            result->offset  = 0;
+            result->ptr     = (const unsigned char*) &result->tmp;
+        }
+    }
+    return 1;
+}
+
+
+int in_bounds(int elem_size, int n_elem, int inc, c_binary b){
+    int end_offset = b.offset + (elem_size*n_elem*inc);
+    debug_write("end max offset: %i  offset: %u\n", end_offset, b.size);
+    return (elem_size > 0 && end_offset >= 0 && end_offset <= b.size)? 0:20;
+}
+
+int in_cste_bounds(int elem_size, int n_elem, int inc, cste_c_binary b){
+    int end_offset = b.offset + (elem_size*n_elem*inc);
+    debug_write("end max offset: %i  offset: %u\n", end_offset, b.size);
+    return (elem_size > 0 && end_offset >= 0 && end_offset <= b.size)?0:20;
+}
+
+void set_cste_c_binary(cste_c_binary *ccb, etypes type, unsigned char* ptr){
+    //e_int, e_double, e_float_complex, e_double_complex, 
+    switch(type){
+        case e_int:            ccb->size = sizeof(int);        break;
+        case e_double:         ccb->size = sizeof(double);     break;
+        case e_float_complex:  ccb->size = sizeof(float)*2;    break;
+        case e_double_complex: ccb->size = sizeof(double)*2;   break;
+        default:               ccb->size = 0;                  break;
+    }
+
+    ccb->type   = type;
+    ccb->offset = 0;
+    ccb->ptr    = ptr;
+}
+
+ERL_NIF_TERM cste_c_binary_to_term(ErlNifEnv* env, cste_c_binary ccb){
+    ERL_NIF_TERM result = -1;
+
+    switch(ccb.type){
+        case e_int:     int    vali = *(int*)    ccb.ptr; result = enif_make_int(env, vali);    break;
+        case e_double:  double vald = *(double*) ccb.ptr; result = enif_make_double(env, vald); break;
+
+        case e_float_complex:
+        case e_double_complex:
+             ErlNifBinary bin;
+
+            debug_write("Creating binarry...\n");
+            if(enif_alloc_binary(ccb.size, &bin)){
+                memcpy(bin.data, ccb.ptr, ccb.size);
+                debug_write("Finished copying!\n");
+                if(!(result = enif_make_binary(env, &bin))){
+                    enif_release_binary(&bin);
+                    result = enif_make_badarg(env);
+                }
+            }
+        break;
+
+        default:
+            result = enif_make_badarg(env);
+        break;
+    }
+    return result;
+}
+
+
+
+ERL_NIF_TERM new(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
+    int size = 0;
+    if(!enif_get_int(env, argv[0], &size)) return enif_make_badarg(env);
+
+    void* ptr = enif_alloc_resource(c_binary_resource, size);
+    ERL_NIF_TERM resource = enif_make_resource(env, ptr);
+    enif_release_resource(ptr);
+    return resource; 
+}
+
+ERL_NIF_TERM copy(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
+    ErlNifBinary bin;
+    c_binary cbin;
+
+    if(!enif_inspect_binary(env, argv[0], &bin)|| !get_c_binary(env, argv[1], &cbin))
+         return enif_make_badarg(env);
+
+    memcpy(cbin.ptr + cbin.offset, bin.data, bin.size);
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
+    c_binary cbin;
+    ErlNifBinary bin;
+    unsigned size;
+
+    if(!enif_get_uint(env, argv[0], &size)
+        || !get_c_binary(env, argv[1], &cbin)
+        || !enif_alloc_binary(size, &bin))
+        return enif_make_badarg(env);
+
+    memcpy(bin.data, cbin.ptr + cbin.offset, size);
+
+    return enif_make_binary(env, &bin);
+}
+
+// UNWRAPPER
+
+// https://stackoverflow.com/questions/7666509/hash-function-for-string
+unsigned long hash(char *str){
+    unsigned long hash = 5381;
+    int c;
+
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+
+    return hash;
+}
+
+
+bytes_sizes pick_size(long hash, blas_names names[], bytes_sizes sizes []){
+    for(int curr=0; names[curr] != blas_name_end; curr++)
+        if(names[curr]==hash)
+            return sizes[curr];
+    
+    return 0;
+}
+
+
+ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
+    int narg;
+    const ERL_NIF_TERM* elements;
+    char name[20];
+
+    if(!enif_get_tuple(env, *argv, &narg, &elements)
+        || !enif_get_atom(env, elements[0], name, 20, ERL_NIF_LATIN1)
+    ){
+        return enif_make_badarg(env);
+    }
+
+    
+    int error;
+    narg--;
+    elements++;
+    unsigned long hash_name = hash(name);
+    ERL_NIF_TERM result = 0;
+    //debug_write("%s=%lu\n", name, hash_name);
+    switch(hash_name){
+
+        case saxpy: case daxpy: case caxpy: case zaxpy: {
+            int n; cste_c_binary alpha; cste_c_binary x; int incx; c_binary y; int incy;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){saxpy, daxpy, caxpy, zaxpy, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 6? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_cste_ptr, e_int, e_ptr, e_int, e_end}, &n, &alpha, &x, &incx, &y, &incy))
+                && !(error = in_cste_bounds(type, 1, 1, alpha)) && !(error = in_cste_bounds(type, n, incx, x))  && !(error = in_bounds(type, n, incy, y))
+            )
+             switch(hash_name){
+                case saxpy: cblas_saxpy(n, *(double*)get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case daxpy: cblas_daxpy(n, *(double*)get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case caxpy: cblas_caxpy(n,           get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case zaxpy: cblas_zaxpy(n,           get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                default: error = -2; break;
+            }
+
+        break;}
+
+        case scopy: case dcopy: case ccopy: case zcopy:  {
+            int n;  cste_c_binary x; int incx; c_binary y; int incy;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){scopy, dcopy, ccopy, zcopy,  blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 5? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end}, &n, &x, &incx, &y, &incy))
+                && !(error = in_cste_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y))
+            )
+            switch(hash_name){
+                case scopy: cblas_scopy(n, get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case dcopy: cblas_dcopy(n, get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case ccopy: cblas_ccopy(n, get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case zcopy: cblas_zcopy(n, get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                default: error = -2; break;
+            }
+
+        break;}
+
+        case sswap: case dswap: case cswap: case zswap:  {
+            int n;  c_binary x; int incx; c_binary y; int incy;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){sswap, dswap, cswap, zswap, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 5? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_ptr, e_int, e_ptr, e_int, e_end}, &n, &x, &incx, &y, &incy))
+                && !(error = in_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y))
+            )
+            switch(hash_name){
+                case sswap: cblas_sswap(n, get_ptr(x), incx, get_ptr(y), incy); break;
+                case dswap: cblas_dswap(n, get_ptr(x), incx, get_ptr(y), incy); break;
+                case cswap: cblas_cswap(n, get_ptr(x), incx, get_ptr(y), incy); break;
+                case zswap: cblas_zswap(n, get_ptr(x), incx, get_ptr(y), incy); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        case sscal: case dscal: case cscal: case zscal: case csscal: case zdscal:  {
+            int n;  cste_c_binary alpha; c_binary x; int incx;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){sscal, dscal, cscal, zscal,  csscal, zdscal, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 4? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_ptr, e_int, e_end}, &n, &alpha, &x, &incx))
+                && !(error = in_cste_bounds(type, 1, 1, alpha) ) && !(error = in_bounds(type, n, incx, x))
+            )
+            switch(hash_name){
+                case sscal:  cblas_sscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case dscal:  cblas_dscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case cscal:  cblas_cscal(n,            get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case zscal:  cblas_zscal(n,            get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case csscal: cblas_sscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case zdscal: cblas_dscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        case sdot: case ddot: case dsdot: case cdotu: case zdotu: case cdotc: case zdotc: {
+            cste_c_binary dot_result;
+
+            int n;  cste_c_binary x; int incx; cste_c_binary y; int incy;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){sdot, ddot, dsdot, cdotu, zdotu, cdotc, zdotc, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, s_bytes, c_bytes, z_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 5? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_int, e_cste_ptr, e_int, e_end}, &n, &x, &incx, &y, &incy))
+                && !(error = in_cste_bounds(type, n, incx, x) ) && !(error = in_cste_bounds(type, n, incy, y))
+            ){
+                switch(hash_name){
+                    case sdot:                   double f_result  = cblas_sdot (n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &f_result);  break;
+                    case ddot:                   double d_result  = cblas_ddot (n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &d_result);  break;
+                    case dsdot:                  double ds_result = cblas_dsdot(n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &ds_result); break;
+                    case cdotu: openblas_complex_float  c_result  = cblas_cdotu(n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_float_complex,  (unsigned char*) &c_result);  break;
+                    case zdotu: openblas_complex_double z_result  = cblas_zdotu(n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double_complex, (unsigned char*) &z_result);  break;
+                    case cdotc: openblas_complex_float  cd_result = cblas_cdotc(n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_float_complex,  (unsigned char*) &cd_result); break;
+                    case zdotc: openblas_complex_double zd_result = cblas_zdotc(n, get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double_complex, (unsigned char*) &zd_result); break;
+                    default: error = -2; break;
+                }
+
+                result = cste_c_binary_to_term(env, dot_result);
+            }
+            
+        break;}
+
+        case sdsdot: {
+            cste_c_binary dot_result;
+
+            int n;  cste_c_binary b; cste_c_binary x; int incx; cste_c_binary y; int incy;
+            bytes_sizes type = s_bytes;
+            
+            if( !(error = narg == 6? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_end}, &n, &b, &x, &incx, &y, &incy))
+                && !(error = in_cste_bounds(type, n, incx, x) ) && !(error = in_cste_bounds(type, n, incy, y))
+            ){
+                double f_result  = cblas_sdsdot (n, *(double*) get_cste_ptr(b), get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &f_result);
+                result = cste_c_binary_to_term(env, dot_result);
+            }
+        break;}
+
+        case snrm2: case dnrm2: case scnrm2: case dznrm2: case sasum: case dasum: case scasum: case dzasum: case isamax: case idamax: case icamax: case izamax:
+        case isamin : case idamin: case  icamin: case  izamin: case ismax: case idmax: case icmax: case izmax: case ismin: case idmin: case  icmin: case  izmin: {
+            cste_c_binary u_result;
+            double d_result;
+            int i_result;
+
+            int n;  cste_c_binary x; int incx;
+            bytes_sizes type;
+            switch(hash_name){
+                case snrm2:  case sasum:  case isamax: case isamin: case ismax: case ismin: type = s_bytes;  break;   
+                case dnrm2:  case dasum:  case idamax: case idamin: case idmax: case idmin: type = d_bytes;  break;
+                case scnrm2: case scasum: case icamax: case icamin: case icmax: case icmin: type = c_bytes;  break;
+                case dznrm2: case dzasum: case izamax: case izamin: case izmax: case izmin: type = z_bytes;  break;
+                default:                                                                    type = no_bytes; break;
+            }
+            if( !(error = narg == 3? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_int, e_end}, &n, &x, &incx))
+                && !(error = in_cste_bounds(type, n, incx, x))
+            ){
+                switch(hash_name){
+                    case snrm2:  d_result  = cblas_snrm2 (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case dnrm2:  d_result  = cblas_dnrm2 (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case scnrm2: d_result  = cblas_scnrm2(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case dznrm2: d_result  = cblas_dznrm2(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    
+                    case dasum:  d_result  = cblas_dasum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case sasum:  d_result  = cblas_sasum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case scasum: d_result  = cblas_scasum(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    case dzasum: d_result  = cblas_dzasum(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    
+                    case isamax: i_result  = cblas_isamax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case idamax: i_result  = cblas_idamax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case icamax: i_result  = cblas_icamax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case izamax: i_result  = cblas_izamax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+
+                    case isamin: i_result  = cblas_isamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case idamin: i_result  = cblas_idamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case icamin: i_result  = cblas_icamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case izamin: i_result  = cblas_izamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+
+                    case ismax: i_result  = cblas_ismax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case idmax: i_result  = cblas_idmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case icmax: i_result  = cblas_icmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case izmax: i_result  = cblas_izmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+
+                    case ismin: i_result  = cblas_ismin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case idmin: i_result  = cblas_idmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case icmin: i_result  = cblas_icmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    case izmin: i_result  = cblas_izmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+
+                    default: error = -2; break;
+                }
+                result = cste_c_binary_to_term(env, u_result);
+            }
+            
+        break;}
+
+        case srot: case drot: case csrot: case zdrot:  {
+            int n;  c_binary x; int incx; c_binary y; int incy; cste_c_binary c; cste_c_binary s;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){srot, drot, csrot, zdrot, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 7? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_ptr, e_int, e_ptr, e_int, e_cste_ptr, e_cste_ptr, e_end}, &n, &x, &incx, &y, &incy, &c, &s))
+                && !(error = in_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y))
+            )
+            switch(hash_name){
+                case srot:  cblas_srot(n, get_ptr(x),  incx, get_ptr(y), incy, *(float*)  get_cste_ptr(c), *(float*)  get_cste_ptr(s)); break;
+                case drot:  cblas_drot(n, get_ptr(x),  incx, get_ptr(y), incy, *(double*) get_cste_ptr(c), *(double*) get_cste_ptr(s)); break;
+                case csrot: cblas_csrot(n, get_ptr(x), incx, get_ptr(y), incy, *(float*)  get_cste_ptr(c), *(float*)  get_cste_ptr(s)); break;
+                case zdrot: cblas_zdrot(n, get_ptr(x), incx, get_ptr(y), incy, *(double*) get_cste_ptr(c), *(double*) get_cste_ptr(s)); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        case srotg: case drotg: case crotg: case zrotg:  {
+            c_binary a; c_binary b; c_binary c; c_binary s;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){srotg, drotg, crotg, zrotg, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
+            
+            if( !(error = narg == 4? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_ptr, e_ptr, e_ptr, e_ptr, e_end}, &a, &b, &c, &s))
+                && !(error = in_bounds(type, 1, 1, a)) && !(error = in_bounds(type, 1, 1, b)) && !(error = in_bounds(type, 1, 1, c)) && !(error = in_bounds(type, 1, 1, s))
+            )
+            switch(hash_name){
+                case srotg: cblas_srotg(get_ptr(a), get_ptr(b), get_ptr(c), get_ptr(s)); break;
+                case drotg: cblas_drotg(get_ptr(a), get_ptr(b), get_ptr(c), get_ptr(s)); break;
+                case crotg: cblas_crotg(get_ptr(a), get_ptr(b), get_ptr(c), get_ptr(s)); break;
+                case zrotg: cblas_zrotg(get_ptr(a), get_ptr(b), get_ptr(c), get_ptr(s)); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        case srotm: case drotm:  {
+            int n; c_binary x; int incx; c_binary y; int incy; cste_c_binary param;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){srotm, drotm, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, no_bytes});
+            
+            if( !(error = narg == 6? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_int, e_ptr, e_int, e_ptr, e_int, e_cste_ptr, e_end}, &n, &x, &incx, &y, &incy, &param))
+                && !(error = in_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y)) && !(error = in_cste_bounds(type, 5, 1, param))
+            )
+            switch(hash_name){
+                case srotm: cblas_srotm(n, get_ptr(x), incx, get_ptr(y), incy, get_cste_ptr(param)); break;
+                case drotm: cblas_srotm(n, get_ptr(x), incx, get_ptr(y), incy, get_cste_ptr(param)); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        case srotmg: case drotmg:  {
+            c_binary d1; c_binary d2; c_binary b1; cste_c_binary b2; c_binary param;
+            bytes_sizes type = pick_size(hash_name, (blas_names []){srotmg, drotmg, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, no_bytes});
+            
+            if( !(error = narg == 5? 0:21)
+                && !(error = translate(env, elements, (etypes[]) {e_ptr, e_ptr, e_ptr, e_cste_ptr, e_ptr, e_end}, &d1, &d2, &b1, &b2, &param))
+                && !(error = in_bounds(type, 1, 1, d1)) && !(error = in_bounds(type, 1, 1, d2)) && !(error = in_bounds(type, 1, 1, b1)) && !(error = in_cste_bounds(type, 1, 1, b2)) && !(error = in_bounds(type, 5, 1, param))
+            )
+            switch(hash_name){
+                case srotmg: cblas_srotmg(get_ptr(d1), get_ptr(d2), get_ptr(b1), *(float*) get_cste_ptr(b2),  get_ptr(param)); break;
+                case drotmg: cblas_srotmg(get_ptr(d1), get_ptr(d2), get_ptr(b1), *(double*)get_cste_ptr(b2),  get_ptr(param)); break;
+                default: error = -2; break;
+            }
+            
+        break;}
+
+        default:
+            error = -1;
+        break;
+    }
+
+    switch(error){
+        case -1:
+            debug_write("%s=%lu,\n", name, hash_name);
+            return enif_raise_exception(env, enif_make_atom(env, "Unknown blas."));
+        case 0:
+            return !result? enif_make_atom(env, "ok"): result;
+        break;
+        case 1 ... 19:
+            char buff[50];
+            sprintf(buff, "Could not translate argument %i.", error - 1);
+            return enif_raise_exception(env, enif_make_atom(env, buff));
+        break;
+        case 20:
+            return enif_raise_exception(env, enif_make_atom(env, "Array overflow."));
+        break;
+        case 21:
+            return enif_raise_exception(env, enif_make_atom(env, "Invalid number of arguments."));
+        break;
+
+        default:
+            debug_write("In default errror.\n");
+            return enif_make_badarg(env);
+        break;
+    }
+}
+
+int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info){
+    c_binary_resource = enif_open_resource_type(env, "c_binary", "c_binary_resource", NULL, ERL_NIF_RT_CREATE, NULL);
+    debug_write("\nNew session\n-----------\n");
+    return 0;
+}
+
+ErlNifFunc nif_funcs[] = { 
+    {"new_nif", 1, new},
+    {"copy_nif", 2, copy},
+    {"bin_nif", 2, to_binary},
+
+    {"dirty_unwrapper", 1, unwrapper},
+    {"clean_unwrapper", 1, unwrapper}
 };
 
-static ErlNifResourceType *avec_r;
 
-typedef struct {
-    double v[1];
-} Avec;
-
-static ERL_NIF_TERM mk_avec(ErlNifEnv *env, unsigned int n, Avec **avec) {
-    ERL_NIF_TERM term;
-    *avec = enif_alloc_resource(avec_r, n*sizeof(double));
-    term = enif_make_resource(env, *avec);
-    enif_release_resource(*avec);
-    return term;
-}
-
-#define AVEC_SIZE(AV) 	(enif_sizeof_resource(AV) / 8)
-
-/* ---------------------------------------------------*/
-
-static ERL_NIF_TERM make_cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n;
-    ERL_NIF_TERM res;
-    Avec *avec = NULL;
-    double *data;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    res = mk_avec(env, n, &avec);
-
-    if(enif_is_binary(env, argv[1])) {
-	ErlNifBinary bin;
-	enif_inspect_binary(env, argv[1], &bin);
-	if(n*sizeof(double) != bin.size)
-	    return enif_make_badarg(env);
-	memcpy(avec->v, bin.data, sizeof(double)*n);
-    } else if(enif_is_identical(argv[1], atom_true)) {
-	data = avec->v;
-	memset(data, 0, sizeof(double)*n);
-    }
-
-    return res;
-}
-
-static ERL_NIF_TERM from_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int len;
-    int dim, i,j, tmp;
-    ERL_NIF_TERM hd, tail, res;
-    const ERL_NIF_TERM *current;
-    Avec *avec = NULL;
-    double *data;
-
-    if(!enif_get_list_length(env, argv[0], &len) || len == 0)
-	return enif_make_badarg(env);
-
-    enif_get_list_cell(env, argv[0], &hd, &tail);
-    if(!enif_get_tuple(env, hd, &dim, &current))
-	dim = 1;
-    res = mk_avec(env, len*dim, &avec);
-
-    enif_consume_timeslice(env, (len*dim)/1000);
-
-    data = avec->v;
-    if(dim == 1) {
-	for(i=0; i<len; i++) {
-	    if(!enif_get_double(env, hd, data))
-		return enif_make_badarg(env);
-	    data++;
-	    enif_get_list_cell(env, tail, &hd, &tail);
-	}
-    } else {
-	for(i=0; i<len; i++) {
-	    if(!enif_get_tuple(env, hd, &tmp, &current) || tmp != dim)
-		return enif_make_badarg(env);
-	    for(j=0; j<dim; j++) {
-		if(!enif_get_double(env, current[j], data))
-		    return enif_make_badarg(env);
-		data++;
-	    }
-	    enif_get_list_cell(env, tail, &hd, &tail);
-	}
-    }
-    return res;
-}
-
-static ERL_NIF_TERM to_values(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    ERL_NIF_TERM tail, *tmp;
-    Avec *avec = NULL;
-    double *arr;
-    unsigned int idx, n, dim, i, j, max;
-
-    if(!enif_get_uint(env, argv[0], &idx)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[1], &n))   return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &dim))  return enif_make_badarg(env);
-
-    if(!enif_get_resource(env, argv[3], avec_r, (void **) &avec))
-	return enif_make_badarg(env);
-    max = AVEC_SIZE(avec);
-
-    enif_consume_timeslice(env, max/1000);
-
-    if(idx+n > max) return enif_make_badarg(env);
-
-    if(n == 1 && dim == 0)  /* get_value() */
-	return enif_make_double(env, avec->v[idx]);
-
-    if(dim == 0) { /* to_list */
-	tail = enif_make_list(env, 0);
-	arr = avec->v + idx + n-1;
-	for(i=0; i < max; i++) {
-	    tail = enif_make_list_cell(env, enif_make_double(env, *arr), tail);
-	    arr -= 1;
-	}
-	return tail;
-    }
-    if(dim == n) { /* to_tuple */
-	tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*n);
-	arr = avec->v;
-	for(i=0; i < n; i++) {
-	    tmp[i] = enif_make_double(env, arr[idx+i]);
-	}
-	tail = enif_make_tuple_from_array(env, tmp, n);
-	free(tmp);
-	return tail;
-    }
-
-    /* list of tuples */
-    if(n % dim != 0)
-	return enif_make_badarg(env);
-
-    arr = avec->v + idx + n-dim;
-    tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*dim);
-    tail = enif_make_list(env, 0);
-
-    for(i=0; i < max / dim; i++) {
-	for(j=0; j < dim; j++, arr++) {
-	    tmp[j] = enif_make_double(env, *arr);
-	}
-	tail = enif_make_list_cell(env, enif_make_tuple_from_array(env, tmp, dim), tail);
-	arr -= 2*dim;
-    }
-    free(tmp);
-    return tail;
-}
-
-
-static ERL_NIF_TERM to_idx_list(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    ERL_NIF_TERM hd, tail, *tmp;
-    Avec *avec = NULL;
-    double *arr;
-    unsigned int idx, n, i;
-
-    if(!enif_get_list_length(env, argv[0], &n) || n == 0)
-	return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
-	return enif_make_badarg(env);
-
-    enif_consume_timeslice(env, n/1000);
-    tmp = (ERL_NIF_TERM*) malloc(sizeof(ERL_NIF_TERM)*n);
-    arr = avec->v;
-    tail = argv[0];
-    for(i=0; i < n; i++) {
-	enif_get_list_cell(env, tail, &hd, &tail);
-	if(!enif_get_uint(env, hd, &idx) || idx >= AVEC_SIZE(avec))
-	    return enif_make_badarg(env);
-	tmp[i] = enif_make_tuple2(env, hd, enif_make_double(env, arr[idx]));
-    }
-    return enif_make_list_from_array(env, tmp, n);
-}
-
-static ERL_NIF_TERM cont_size(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    Avec *avec = NULL;
-
-    if(!enif_get_resource(env, argv[0], avec_r, (void **) &avec)) {
-	return enif_make_badarg(env);
-    }
-
-    return enif_make_uint(env, AVEC_SIZE(avec));
-}
-
-static ERL_NIF_TERM cont_update(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    ERL_NIF_TERM hd, tail;
-    const ERL_NIF_TERM *curr;
-    Avec *avec = NULL;
-    double *arr, temp;
-    int i=0, n=0;
-    unsigned int idx, max;
-
-    if(argc == 2) { /* tuple list of values */
-	if(!enif_is_list(env, argv[0]))
-	    return enif_make_badarg(env);
-	if(!enif_get_resource(env, argv[1], avec_r, (void **) &avec))
-	    return enif_make_badarg(env);
-	arr = avec->v;
-	max = AVEC_SIZE(avec);
-	tail = argv[0];
-	while(!enif_is_empty_list(env, tail)) {
-	    if(!enif_get_list_cell(env, tail, &hd, &tail))
-		return enif_make_badarg(env);
-	    if(!enif_get_tuple(env, hd, &i, &curr) || i != 2)
-		return enif_make_badarg(env);
-	    if(!enif_get_uint(env, curr[0], &idx) || idx >= max)
-		return enif_make_badarg(env);
-	    if(!enif_get_double(env, curr[1], &temp))
-		return enif_make_badarg(env);
-	    arr[idx] = temp;
-	    n++;
-	}
-	enif_consume_timeslice(env, n/1000);
-	return atom_ok;
-    }
-    /* update(Idx, V|[Vs], Vec) */
-    if(!enif_get_uint(env, argv[0], &idx))
-	return enif_make_badarg(env);
-    if(!enif_is_list(env, argv[1])) {
-	/* update(Idx, Double, Vec) */
-	if(!enif_get_double(env, argv[1], &temp))
-	    return enif_make_badarg(env);
-	if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
-	    return enif_make_badarg(env);
-	max = AVEC_SIZE(avec);
-	if(idx >= max)
-	    return enif_make_badarg(env);
-	arr = avec->v;
-	arr[idx] = temp;
-	return atom_ok;
-    }
-    /* update(Idx, [Values], Vec) */
-    tail = argv[1];
-    if(!enif_get_resource(env, argv[2], avec_r, (void **) &avec))
-	return enif_make_badarg(env);
-    max = AVEC_SIZE(avec);
-    arr = avec->v+idx;
-    while(!enif_is_empty_list(env, tail)) {
-	if(!enif_get_list_cell(env, tail, &hd, &tail))
-	    return enif_make_badarg(env);
-	if(!enif_get_double(env, hd, &temp))
-	    return enif_make_badarg(env);
-	*arr = temp;
-	arr++;
-	idx++;
-	n++;
-	if(idx > max)
-	    return enif_make_badarg(env);
-    }
-    enif_consume_timeslice(env, n/1000);
-    return atom_ok;
-}
-
-
-
-/* ---------------------------------------------------*/
-
-static ERL_NIF_TERM drotg(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{/* (a, b) */
-    double a,b,c,s;
-
-    if(!enif_get_double(env, argv[0], &a) || !enif_get_double(env, argv[1], &b)) {
-	return enif_make_badarg(env);
-    }
-
-    cblas_drotg(&a,&b,&c,&s);
-    return enif_make_tuple4(env,
-			    enif_make_double(env, a), enif_make_double(env, b),
-			    enif_make_double(env, c), enif_make_double(env, s));
-
-}
-
-static ERL_NIF_TERM drot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, ys;
-    int xi, yi;
-    Avec *ax, *ay;
-    double *x, *y, c, s;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[3], &xi)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[4], avec_r, (void **) &ay)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[5], &ys)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[6], &yi)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[7], &c)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[8], &s)) return enif_make_badarg(env);
-
-    x = ax->v + xs;
-    y = ay->v + ys;
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-
-    enif_consume_timeslice(env, n/1000);
-    cblas_drot(n, x, xi, y, xi, c, s);
-
-    return atom_ok;
-}
-
-static ERL_NIF_TERM l1d_1cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int op, n, xs;
-    int xi, tmp;
-    Avec *ax;
-    double *x, alpha;
-    ERL_NIF_TERM res = atom_ok;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[1], &alpha)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[2], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[4], &xi)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[5], &op)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-
-    switch(op) {
-    case 0:
-	cblas_dscal(n, alpha, x, xi);
-	break;
-    case 1:
-	res = enif_make_double(env, cblas_dnrm2(n, x, xi));
-	break;
-    case 2:
-	res = enif_make_double(env, cblas_dasum(n, x, xi));
-	break;
-    case 3:
-	tmp = cblas_idamax(n, x, xi);
-	res = enif_make_tuple2(env,
-			       enif_make_uint(env, tmp),
-			       enif_make_double(env, x[tmp]));
-	break;
-    }
-    enif_consume_timeslice(env, n/1000);
-    return res;
-}
-
-
-static ERL_NIF_TERM dcopy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, xs, ys = 0;
-    int xi, yi=1;
-    Avec *ax, *ay;
-    double *x, *y;
-    ERL_NIF_TERM res;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[2], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[3], &xi)) return enif_make_badarg(env);
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-
-    if(argc == 4) {  /* copy to new vector */
-	res = mk_avec(env, n, &ay);
-    } else {
-	if(!enif_get_resource(env, argv[4], avec_r, (void **) &ay)) return enif_make_badarg(env);
-	if(!enif_get_uint(env, argv[5], &ys)) return enif_make_badarg(env);
-	if(!enif_get_int(env, argv[6], &yi)) return enif_make_badarg(env);
-	if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
-	res = atom_ok;
-    }
-
-    x = ax->v + xs;
-    y = ay->v + ys;
-    cblas_dcopy(n, x, xi, y, yi);
-    enif_consume_timeslice(env, n/1000);
-
-    return res;
-}
-
-static ERL_NIF_TERM l1d_2cont(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int op, n, xs, ys;
-    int xi, yi;
-    Avec *ax, *ay;
-    double *x, *y, alpha, res;
-
-    if(!enif_get_uint(env, argv[0], &n)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[1], &alpha)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[2], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[4], &xi)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[5], avec_r, (void **) &ay)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[6], &ys)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[7], &yi)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[8], &op)) return enif_make_badarg(env);
-    x = ax->v + xs;
-    y = ay->v + ys;
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
-
-    enif_consume_timeslice(env, n/1000);
-    switch(op) {
-    case 0:
-	cblas_daxpy(n, alpha, x, xi, y, yi);
-	break;
-    case 1:
-	cblas_dswap(n, x, xi, y, yi);
-	break;
-    case 2:
-	res = cblas_ddot(n, x, xi, y, yi);
-	return enif_make_double(env, res);
-    }
-    return atom_ok;
-}
-
-/* ---------------------------------------------------*/
-
-static ERL_NIF_TERM dgemv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int m, n, lda, xs, ys, op;
-    int xi, yi;
-    Avec *aa, *ax, *ay;
-    double *a, *x, *y, alpha, beta;
-    enum CBLAS_ORDER order = 0;
-    enum CBLAS_TRANSPOSE trans = 0;
-    enum CBLAS_UPLO uplo = 0;
-
-    if(enif_is_identical(argv[0], atom_rowmaj)) order = CblasRowMajor;
-    else if(enif_is_identical(argv[0], atom_colmaj)) order = CblasColMajor;
-    else return enif_make_badarg(env);
-
-    if(enif_is_identical(argv[1], atom_notransp)) trans = CblasNoTrans;
-    else if(enif_is_identical(argv[1], atom_transpose)) trans = CblasTrans;
-    else if(enif_is_identical(argv[1], atom_conjugatet)) trans = CblasConjTrans;
-    else if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-    else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-    else return enif_make_badarg(env);
-
-    if(!enif_get_uint(env, argv[2], &m)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[3], &n)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[4], &alpha)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[5], avec_r, (void **) &aa)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[6], &lda)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[7], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[8], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[9], &xi)) return enif_make_badarg(env);
-    if(!enif_get_double(env, argv[10], &beta)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[11], avec_r, (void **) &ay)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[12], &ys)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[13], &yi)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[14], &op)) return enif_make_badarg(env);
-
-    a = aa->v;
-    x = ax->v + xs;
-    y = ay->v + ys;
-
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-    if((ys+n*abs(yi)-1) > AVEC_SIZE(ay)) return enif_make_badarg(env);
-
-    switch(op) {
-    case 0:
-	cblas_dgemv(order, trans, m, n, alpha, a, lda, x, xi, beta, y, yi); break;
-    case 1:
-	cblas_dsymv(order, uplo, n, alpha, a, lda, x, xi, beta, y, yi); break;
-    case 2:
-	cblas_dspmv(order, uplo, n, alpha, a, x, xi, beta, y, yi); break;
-    case 3:
-	cblas_dger(order, m, n, alpha, x, xi, y, yi, a, lda); break;
-    case 4:
-	cblas_dsyr2(order, uplo, n, alpha, x, xi, y, yi, a, lda); break;
-    case 5:
-	cblas_dspr2(order, uplo, n, alpha, x, xi, y, yi, a); break;
-    }
-    enif_consume_timeslice(env, MAX(1,m)*n/1000);
-    return atom_ok;
-}
-
-static ERL_NIF_TERM dtrmv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int n, lda, xs, op;
-    int xi;
-    Avec *aa, *ax;
-    double *a, *x, alpha;
-    enum CBLAS_ORDER order = 0;
-    enum CBLAS_TRANSPOSE trans = 0;
-    enum CBLAS_UPLO uplo = 0;
-    enum CBLAS_DIAG diag = 0;
-
-    if(enif_is_identical(argv[0], atom_rowmaj)) order = CblasRowMajor;
-    else if(enif_is_identical(argv[0], atom_colmaj)) order = CblasColMajor;
-    else return enif_make_badarg(env);
-
-    if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-    else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-    else return enif_make_badarg(env);
-
-    if(!enif_get_uint(env, argv[10], &op)) return enif_make_badarg(env);
-    if(op < 4) {
-	if(enif_is_identical(argv[2], atom_notransp)) trans = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) trans = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) trans = CblasConjTrans;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[3], atom_nonunit)) diag = CblasNonUnit;
-	else if(enif_is_identical(argv[3], atom_unit)) diag = CblasUnit;
-	else return enif_make_badarg(env);
-    }
-
-    if(!enif_get_uint(env, argv[4], &n)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[5], avec_r, (void **) &aa)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[6], &lda)) return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[7], avec_r, (void **) &ax)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[8], &xs)) return enif_make_badarg(env);
-    if(!enif_get_int(env, argv[9], &xi)) return enif_make_badarg(env);
-    if(argc > 11)
-	if(!enif_get_double(env, argv[11], &alpha)) return enif_make_badarg(env);
-
-    a = aa->v;
-    x = ax->v + xs;
-
-    /* array limit checks */
-    if((xs+n*abs(xi)-1) > AVEC_SIZE(ax)) return enif_make_badarg(env);
-
-    switch(op) {
-    case 0:
-	cblas_dtrmv(order, uplo, trans, diag, n, a, lda, x, xi);break;
-    case 1:
-	cblas_dtpmv(order, uplo, trans, diag, n, a, x, xi); break;
-    case 2:
-	cblas_dtrsv(order, uplo, trans, diag, n, a, lda, x, xi);break;
-    case 3:
-	cblas_dtpsv(order, uplo, trans, diag, n, a, x, xi);break;
-    case 4:
-	cblas_dsyr(order, uplo, n, alpha, x, xi, a, lda); break;
-    case 5:
-	cblas_dspr(order, uplo, n, alpha, x, xi, a); break;
-    }
-
-    enif_consume_timeslice(env, n*n/1000);
-    return atom_ok;
-}
-
-/* ---------------------------------------------------*/
-
-static ERL_NIF_TERM dgemm(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
-{
-    unsigned int m, n, k, lda, ldb, ldc, op;
-    Avec *aa, *ab, *ac;
-    double alpha, beta, *a, *b, *c = NULL;
-    enum CBLAS_ORDER order = 0;
-    enum CBLAS_TRANSPOSE ta = 0, tb = 0;
-    enum CBLAS_UPLO uplo = 0;
-    enum CBLAS_SIDE side = 0;
-    enum CBLAS_DIAG diag = 0;
-
-    if(enif_is_identical(argv[0], atom_rowmaj)) order = CblasRowMajor;
-    else if(enif_is_identical(argv[0], atom_colmaj)) order = CblasColMajor;
-    else return enif_make_badarg(env);
-
-    if(!enif_get_uint(env, argv[3], &m)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[4], &n)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[5], &k)) return enif_make_badarg(env);
-
-    if(!enif_get_double(env, argv[6], &alpha)) return enif_make_badarg(env);
-
-    if(!enif_get_resource(env, argv[7], avec_r, (void **) &aa)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[8], &lda)) return enif_make_badarg(env);
-
-    if(!enif_get_resource(env, argv[9], avec_r, (void **) &ab)) return enif_make_badarg(env);
-    if(!enif_get_uint(env, argv[10], &ldb)) return enif_make_badarg(env);
-
-    if(!enif_get_double(env, argv[11], &beta)) return enif_make_badarg(env);
-
-    if(!enif_get_uint(env, argv[12], &op)) return enif_make_badarg(env);
-    if(op < 3) {
-	if(!enif_get_resource(env, argv[13], avec_r, (void **) &ac))
-	    return enif_make_badarg(env);
-	if(!enif_get_uint(env, argv[14], &ldc)) return enif_make_badarg(env);
-	c = ac->v;
-    }
-    a = aa->v;
-    b = ab->v;
-    switch(op) {
-    case 0: {
-	if(enif_is_identical(argv[1], atom_notransp)) ta = CblasNoTrans;
-	else if(enif_is_identical(argv[1], atom_transpose)) ta = CblasTrans;
-	else if(enif_is_identical(argv[1], atom_conjugatet)) ta = CblasConjTrans;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
-	else return enif_make_badarg(env);
-
-	cblas_dgemm(order, ta,tb, m,n,k, alpha, a,lda, b,ldb, beta, c,ldc);
-	break;}
-    case 1: {
-	if(enif_is_identical(argv[1], atom_left)) side = CblasLeft;
-	else if(enif_is_identical(argv[1], atom_right)) side = CblasRight;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_lower)) uplo = CblasLower;
-	else if(enif_is_identical(argv[2], atom_upper)) uplo = CblasUpper;
-	else return enif_make_badarg(env);
-
-	cblas_dsymm(order, side, uplo, m,n, alpha, a,lda, b,ldb, beta, c,ldc);
-	break; }
-    case 2: {
-	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
-
-	// fprintf(stderr, "%d %d,%d,%d %.2f %.2f %d,%d,%d\r\n", __LINE__, m,n,k, alpha, beta, lda,ldb,ldc);
-	cblas_dsyr2k(order, uplo, tb, n, k, alpha, a,lda, b,ldb, beta, c,ldc);
-	break; }
-    case 3: {
-	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
-
-	if(enif_is_identical(argv[13], atom_left)) side = CblasLeft;
-	else if(enif_is_identical(argv[13], atom_right)) side = CblasRight;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[14], atom_nonunit)) diag = CblasNonUnit;
-	else if(enif_is_identical(argv[14], atom_unit)) diag = CblasUnit;
-	else return enif_make_badarg(env);
-
-	cblas_dtrmm(order,side,uplo,tb,diag, m,n, alpha, a,lda, b, ldb);
-	break; }
-    case 4: {
-	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
-
-	if(enif_is_identical(argv[13], atom_left)) side = CblasLeft;
-	else if(enif_is_identical(argv[13], atom_right)) side = CblasRight;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[14], atom_nonunit)) diag = CblasNonUnit;
-	else if(enif_is_identical(argv[14], atom_unit)) diag = CblasUnit;
-	else return enif_make_badarg(env);
-
-	cblas_dtrsm(order,side,uplo,tb,diag, m,n, alpha, a,lda, b, ldb);
-	break; }
-    case 5: {
-	if(enif_is_identical(argv[1], atom_lower)) uplo = CblasLower;
-	else if(enif_is_identical(argv[1], atom_upper)) uplo = CblasUpper;
-	else return enif_make_badarg(env);
-
-	if(enif_is_identical(argv[2], atom_notransp)) tb = CblasNoTrans;
-	else if(enif_is_identical(argv[2], atom_transpose)) tb = CblasTrans;
-	else if(enif_is_identical(argv[2], atom_conjugatet)) tb = CblasConjTrans;
-
-	cblas_dsyrk(order,uplo,tb, n,k, alpha, a,lda, beta, b,ldb);
-	break; }
-    }
-
-    enif_consume_timeslice(env, MAX(m,k)*n/1000);
-    return atom_ok;
-}
-
-/* ---------------------------------------------------*/
-
-static int load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
-{
-    atom_ok = enif_make_atom(env,"ok");
-    atom_true = enif_make_atom(env,"true");
-
-    atom_notransp = enif_make_atom(env,"no_transp");
-    atom_transpose = enif_make_atom(env,"transp");
-    atom_conjugatet = enif_make_atom(env,"conj_transp");
-
-    atom_rowmaj = enif_make_atom(env,"row_maj");
-    atom_colmaj = enif_make_atom(env,"col_maj");
-
-    atom_upper = enif_make_atom(env,"upper");
-    atom_lower = enif_make_atom(env,"lower");
-
-    atom_left = enif_make_atom(env,"left");
-    atom_right = enif_make_atom(env,"right");
-
-    atom_nonunit = enif_make_atom(env,"non_unit");
-    atom_unit = enif_make_atom(env,"unit");
-
-    avec_r  = enif_open_resource_type(env, "eblas", "avec", NULL, ERL_NIF_RT_CREATE, NULL);
-    return 0;
-}
-
-static int upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data,
-		   ERL_NIF_TERM load_info)
-{
-    return 0;
-}
-
-static void unload(ErlNifEnv* env, void* priv_data)
-{
-
-}
-
-ERL_NIF_INIT(blasd_raw,nif_funcs,load,NULL,upgrade,unload)
+ERL_NIF_INIT(blas, nif_funcs, load, NULL, NULL, NULL)
