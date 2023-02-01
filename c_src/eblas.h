@@ -4,7 +4,9 @@
 #include <cblas.h>
 
 // Types translator
-typedef enum types {e_int, e_lint, e_float, e_double, e_ptr, e_cste_ptr, e_float_complex, e_double_complex, e_end} etypes;
+ERL_NIF_TERM atomRowMajor, atomColMajor, atomNoTrans, atomTrans, atomConjTrans, atomUpper,atomLower, atomNonUnit, atomUnit, atomLeft, atomRight;
+
+typedef enum types {e_int, e_uint, e_float, e_double, e_ptr, e_cste_ptr, e_float_complex, e_double_complex, e_layout, e_transpose, e_uplo, e_diag, e_side, e_end} etypes;
 int translate(ErlNifEnv* env, const ERL_NIF_TERM* terms, const etypes* format, ...);
 
 
@@ -123,6 +125,11 @@ typedef enum BLAS_NAMES {
     icmin=210715751477,
     izmin=210716578028,
 
+    sgemv=210727745863,
+    dgemv=210709957048,
+    cgemv=210708771127,
+    zgemv=210736047310,
+
 //----------------------
    
     sgbmv=210727742596,
@@ -165,10 +172,7 @@ typedef enum BLAS_NAMES {
     zhbmv=210736079980,
     chpmv=210708819043,
     zhpmv=210736095226,
-    sgemv=210727745863,
-    dgemv=210709957048,
-    cgemv=210708771127,
-    zgemv=210736047310,
+    
     sger=6385689270,
     dger=6385150215,
     cgeru=210708771291,
