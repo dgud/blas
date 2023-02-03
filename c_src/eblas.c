@@ -43,8 +43,9 @@ int translate(ErlNifEnv* env, const ERL_NIF_TERM* terms, const etypes* format, .
             break;
 
             case e_layout:
+                debug_write("Testing out...\n");
                 i_dest = va_arg(valist, int*);
-                if      (enif_is_identical(terms[curr], atomRowMajor)) *i_dest = CblasRowMajor;
+                if      (enif_is_identical(terms[curr], atomRowMajor)){ *i_dest = CblasRowMajor; debug_write("Correct!\n");}
                 else if (enif_is_identical(terms[curr], atomColMajor)) *i_dest = CblasColMajor;
                 else valid = 0;
             break;
@@ -79,6 +80,7 @@ int translate(ErlNifEnv* env, const ERL_NIF_TERM* terms, const etypes* format, .
                 break;
 
             default:
+                debug_write("Unknown type...\n");
                 valid = 0;
             break;
         }
@@ -541,6 +543,8 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
         break;}
 
         // BLAS LEVEL 2
+        // GENERAL MATRICES
+
         case sgemv: case dgemv: case cgemv: case zgemv: {
             int layout; int trans; int m; int n; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy;
             bytes_sizes type = pick_size(hash_name, (blas_names []){sgemv, dgemv, cgemv, zgemv, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytes, z_bytes, no_bytes});
@@ -556,6 +560,24 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 case zgemv: cblas_zgemv(layout, trans, m, n,           get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,           get_cste_ptr(beta), get_ptr(y), incy); break;
                 default: error = -2; break;
             }
+        break;}
+
+        case sger: case dger: case cgeru: case cgerc: case zgeru: case zgerc:{
+            int layout; int m; int n; cste_c_binary alpha; cste_c_binary x; int incx; cste_c_binary y; int incy; c_binary a; int lda;
+            bytes_sizes type = pick_size(hash_name, (blas_names[]) {sger, dger, cgeru, cgerc, zgeru, zgerc, blas_name_end}, (bytes_sizes[]){s_bytes, d_bytes, c_bytez, c_bytes, z_bytes, z_bytes, no_bytes});
+            if(!(error = narg=10?0:21)
+                && !(error = translate(env, elements, (etypes[]){e_layout, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+                                                     &layout, &m, &n, &alpha, &x, &incx, &y, &incy, &a, &lda))
+                && !(error = in_cste_bounds(type, m, incx, x)) && !(error = in_cste_bounds(type, n, incy, y)))
+            switch(hash_name){
+                case sger:  cblas_sger (layout, m, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case dger:  cblas_dger (layout, m, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case cgec:  cblas_dgerc(layout, m, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case cgeru: cblas_dgeru(layout, m, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case zgerc: cblas_dgerc(layout, m, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case zgeru: cblas_dgeru(layout, m, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                default: error = -2; break;
+            } 
         break;}
 
         case sgbmv: case dgbmv: case cgbmv: case zgbmv: {
