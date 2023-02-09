@@ -1,0 +1,12 @@
+        $CASES  {
+            VARS
+
+            if( !(error = test_n_arg(narg, $N_VAR))
+                && !(error = translate(env, elements, (etypes[]) {$E_VARS , e_end}, $ADDRESS_VAR))
+            )
+            switch(hash_name){
+                $FCT_CALLS 
+                default: error = ERROR_NOT_FOUND; break;
+            }
+            
+        break;}

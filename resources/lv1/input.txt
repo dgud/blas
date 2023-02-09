@@ -1,0 +1,56 @@
+strsv,dtrsv,ctrsv,ztrsv
+e_layout order;e_transpose transa;e_uplo uplo;e_diag diag;e_int n;e_cste_ptr a;e_int lda;e_ptr x;e_int incx;
+-
+sger,dger,cgeru,cgerc,zgeru,zgerc
+e_layout order;e_int m;e_int n;e_cste_ptr alpha;e_cste_ptr x;e_int incx;e_cste_ptr y;e_int incy;e_ptr a;e_int lda;
+-
+sgemm,dgemm,cgemm,cgemm3m,zgemm,zgemm3
+e_layout order;e_transpose transa;e_transpose transb;e_int m;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc;
+-
+stbmv,dtbmv,ctbmv,ztbmv
+e_layout order;e_transpose transa;e_uplo uplo;e_diag diag;e_int n;e_int k;e_cste_ptr a;e_int lda;e_ptr x;e_int incx;
+-
+stbsv,dtbsv,ctbsv,ztbsv
+e_layout order;e_transpose transa;e_uplo uplo;e_diag diag;e_int n;e_int k;e_int lda;e_int incx;e_cste_ptr a;e_ptr x;
+-
+stpmv,dtpmv,ctpmv,ztpmv
+e_layout order;e_transpose transa;e_uplo uplo;e_diag diag;e_int n;e_cste_ptr ap;e_ptr x;e_int incx;
+-
+stpsv,dtpsv,ctpsv,ztpsv
+e_layout order;e_transpose transa;e_uplo uplo;e_diag diag;e_int n;e_cste_ptr ap;e_ptr x;e_int incx;
+-
+ssymv,dsymv,chemv,zhemv
+e_layout order;e_uplo uplo;e_int n;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr x;e_int incx;e_cste_ptr beta;e_ptr y;e_int incy;
+-
+sspmv,dspmv
+e_layout order;e_transpose trans;e_uplo uplo;e_side side;e_diag diag;e_int n;e_cste_ptr alpha;e_cste_ptr ap;e_cste_ptr x;e_int incx;e_cste_ptr beta;e_ptr y;e_int incy;
+-
+sspr,dspr,chpr,zhpr
+e_layout order;e_uplo uplo;e_int n;e_cste_ptr alpha;e_cste_ptr x;e_int incx;e_ptr ap;
+-
+sspr2,dspr2,chpr2,zhpr2
+e_layout order;e_uplo uplo;e_int n;e_cste_ptr alpha;e_cste_ptr x;e_int incx;e_cste_ptr y;e_int incy;e_ptr ap;
+-
+chbmv,zhbmv
+e_layout order;e_uplo uplo;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr x;e_int incx;e_cste_ptr beta;e_ptr y;e_int incy;
+-
+chpmv,zhpmv
+e_layout order;e_uplo uplo;e_int n;e_cste_ptr alpha;e_cste_ptr ap;e_cste_ptr x;e_int incx;e_cste_ptr beta;e_ptr y;e_int incy,
+-
+chemm,zhemm
+e_layout order;e_transpose trans;e_uplo uplo;e_side side;e_diag diag;e_int m;e_int n;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc;
+-
+cherk,zherk
+e_layout order;e_transpose trans;e_uplo uplo;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr beta;e_ptr c;e_int ldc;
+-
+cher2k,zher2k
+e_layout order;e_uplo uplo;e_transpose trans;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc
+-
+ssymm,dsymm,csymm,zsymm
+e_layout order;e_side side;e_uplo uplo;e_int m;e_int n;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc;
+-
+ssyrk,dsyrk,csyrk,zsyrk
+e_layout order;e_transpose trans;e_uplo uplo;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr beta;e_ptr c;e_int ldc;
+-
+ssyr2k,dsyr2k,csyr2k,zsyr2k
+e_layout order;e_transpose trans;e_uplo uplo;e_int n;e_int k;e_cste_ptr alpha;e_cste_ptr a;e_int lda;e_cste_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc;

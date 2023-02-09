@@ -1,0 +1,55 @@
+#! /usr/bin/env python3
+import os
+import sys
+import openai
+import time
+
+key_file = 'key'
+#blas_file = 'blas.txt'
+blas_file = 'blas.txt'
+outout_file = "gpt_result.txt"
+
+with open(key_file, "r") as f:
+    openai.api_key = f.readline().strip('\n')
+
+blases=[]
+with open(blas_file, 'r') as f2:
+    blases = f2.read().split("-")
+
+extractors = {
+#    'names': '''List the function names, removing the 'cblas_' prefixes from them. Separate names using ','.''',
+    
+    'evars': '''Extract the functions variables. Convert the types as such:
+ - OPENBLAS_CONST enum CBLAS_ORDER to e_layout;
+ - OPENBLAS_CONST enum CBLAS_TRANS to e_transpose;
+ - OPENBLAS_CONST enum CBLAS_UPLO to e_uplo;
+ - OPENBLAS_CONST enum CBLAS_SIDE to e_side;
+ - OPENBLAS_CONST enum CBLAS_DIAG to e_diag;
+ - int to e_int;
+ - OPENBLAS_CONST float, OPENBLAS_CONST double, OPENBLAS_CONST void pointer to e_cste_ptr;
+ - float, double, void pointers to e_ptr.
+ Merge the variable by names, print both the types and lowercase names.
+'''
+}
+
+with open("outout_file.txt", "w") as out:
+  
+    for fragment in blases:
+        
+        lines = fragment.split('\n')
+        names = ','.join([line[11:line.find('(')].replace(' ', '') for line in lines if line != ''])
+        out.write(names[:-1] + "\n")
+        print(names[:-1])
+        
+
+        
+        snippet = "Consider this code: \n '" + fragment + "'\n"
+        
+        #Limit request rate
+        time.sleep(20)                            
+        p = snippet + '\n' + extractors['evars']
+        #text-curie-001
+        #"text-davinci-003"
+        ans =  openai.Completion.create(model="text-davinci-003", prompt=p, temperature=0, max_tokens=1000)
+        result = ans["choices"][0]["text"]
+        out.write(result.replace("\n", "").lower() + "\n-\n")

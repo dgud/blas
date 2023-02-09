@@ -1,0 +1,68 @@
+Template:
+
+
+ "
+CASES {
+           VARIABLES
+            if( !(error = test_n_arg(narg, EXPECTED))
+                && ! (error = translate(env, elements, (etypes[]) {E_TYPES},
+                                                        VARIABLES))
+            switch(hash_name){
+                FUNCTIONS
+                default: error = ERROR_NOT_FOUND; break;
+            }
+        break;}
+
+    }
+ "
+
+"
+
+void cblas_strsv(OPENBLAS_CONST enum CBLAS_ORDER order, OPENBLAS_CONST enum CBLAS_UPLO Uplo, OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA, OPENBLAS_CONST enum CBLAS_DIAG Diag, OPENBLAS_CONST blasint N, OPENBLAS_CONST float *A, OPENBLAS_CONST blasint lda, float *X, OPENBLAS_CONST blasint incX);
+void cblas_dtrsv(OPENBLAS_CONST enum CBLAS_ORDER order, OPENBLAS_CONST enum CBLAS_UPLO Uplo, OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA, OPENBLAS_CONST enum CBLAS_DIAG Diag, OPENBLAS_CONST blasint N, OPENBLAS_CONST double *A, OPENBLAS_CONST blasint lda, double *X, OPENBLAS_CONST blasint incX);
+void cblas_ctrsv(OPENBLAS_CONST enum CBLAS_ORDER order, OPENBLAS_CONST enum CBLAS_UPLO Uplo, OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA, OPENBLAS_CONST enum CBLAS_DIAG Diag, OPENBLAS_CONST blasint N, OPENBLAS_CONST void *A, OPENBLAS_CONST blasint lda, void *X, OPENBLAS_CONST blasint incX);
+void cblas_ztrsv(OPENBLAS_CONST enum CBLAS_ORDER order, OPENBLAS_CONST enum CBLAS_UPLO Uplo, OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA, OPENBLAS_CONST enum CBLAS_DIAG Diag, OPENBLAS_CONST blasint N, OPENBLAS_CONST void *A, OPENBLAS_CONST blasint lda, void *X, OPENBLAS_CONST blasint incX);
+
+"
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+From SNIPPET, extract each function name from the code. Replace each cblas_ prefix with "case ", and add the suffix ":" between each name. Remember the result as CASES.
+Print the result in a single line.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+From SNIPPET, extract and merge into a single one the list of parameters of these functions. Modify their type as such:
+enums to int;
+OPENBLAS_CONST float, OPENBLAS_CONST double, OPENBLAS_CONST void pointer to cste_c_binary;
+float, double, void pointers to c_binary.
+Write it in a single line in lowercase, separate variables with ";".
+
+Remember the result as VARIABLES.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+How many variables that is? Remember that number as EXPECTED.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+From SNIPPET, extract and merge into a single list the parameters of these functions, converting:
+OPENBLAS_ORDER to e_layout;
+OPENBLAS_TRANS to e_transpose;
+int to e_int;
+OPENBLAS_CONST float, OPENBLAS_CONST double, OPENBLAS_CONST void pointer to e_cste_ptr;
+float, double, void pointers to e_ptr.
+Drop the variable names, separate variables with ", " tokens, write it in a single line.
+
+Remember the result as E_VARS.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+Rewrite the variables of VARIABLES in lowercase without their type, 
+prepend each one with the symbol '&', and separate them with ', '. Remember the result as VAR_ADDRESSES.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+Call each function present in SNIPPET using arguments extracted in VARIABLES.
+
+ For each cste_c_binary, use the function "get_cste_ptr" on it to get a pointer.  For each c_binary, use the function "get_ptr" on it to get a pointer.  
+ Prepend each call with a case NAME: where name is the lowercase function name without the prefix "cblas_", and append each function call with "break;".
+Remember the result as FUNCTIONS.
+

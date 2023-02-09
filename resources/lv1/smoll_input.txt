@@ -1,0 +1,5 @@
+sger,dger,cgeru,cgerc,zgeru,zgerc
+e_layout order;e_int m;e_int n;e_cste_ptr alpha;e_ptr x;e_int incx;e_ptr y;e_int incy;e_ptr a;e_int lda;
+-
+sgemm,dgemm,cgemm,cgemm3m,zgemm,zgemm3
+e_layout order;e_transpose transa;e_transpose transb;e_int m;e_int n;e_int k;e_cste_ptr alpha;e_ptr a;e_int lda;e_ptr b;e_int ldb;e_cste_ptr beta;e_ptr c;e_int ldc;

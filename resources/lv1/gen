@@ -1,0 +1,93 @@
+#! /usr/bin/env python3
+
+#input_name = "smoll_input.txt"
+input_name = "input.txt"
+output_name = "output.txt"
+
+def build_template(t):
+    return (
+        f'\t\t{t["cases"]} {{\n'
+        f'\t\t\t{t["vars"]}\n'
+        f'\n'
+        f'\t\t\tif(!(error = test_n_arg(narg, {t["n_var"]}))\n'
+        f'\t\t\t&& !(error = translate(env, elements, (etypes[]) {{{t["e_var"]}, e_end}},\n'
+        f'\t\t\t                                     {t["a_var"]}))\n'
+        f'\t\t\t)\n'
+        f'\t\t\tswitch(hash_name){{\n'
+        f'{t["calls"]}\n'
+        f'\t\t\t\tdefault: error = ERROR_NOT_FOUND; break;\n'
+        f'\t\t\t}}\n'
+        f'\t\tbreak;}}\n'
+    )
+
+e_to_c = {
+    'e_layout': 'int',
+    'e_uplo': 'int', 
+    'e_transpose': 'int',
+    'e_diag': 'int',
+    'e_side': 'int',
+    'e_int': 'int',
+    'e_cste_ptr': 'cste_c_binary',
+    'e_ptr': 'c_binary',
+    '\n': ' '
+}
+
+def uncast(prefix, var_names, var_types):
+    result = [''] * len(var_names)
+    for i in range(len(var_names)):
+        result[i] = var_names[i]
+
+        uncast = False
+        if var_types[i] == 'e_ptr':
+            result[i] = ' get_ptr(' + result[i] + ')'
+            uncast = True
+
+        if var_types[i] == 'e_cste_ptr':
+            result[i] = ' get_cste_ptr(' + result[i] + ')'
+            uncast = True
+        
+        if uncast and (var_names[i] == 'alpha' or var_names[i]=='beta') and (prefix == 's' or prefix == 'd'):
+            result[i] = ' *(double*)' + result[i]
+
+    return result
+
+
+
+
+class blas_fct:
+    def __init__(self, content):
+        lines = [c for c in content.split('\n') if c != '']
+        self.fct_names = lines[0].split(',')
+        variables      = [variable for variable in lines[1].split(';') if variable != '']
+        self.e_types   = [entry.split(' ')[0] for entry in variables]
+        self.var_names = [entry.split(' ')[1] for entry in variables]
+
+
+    def get_template(self):
+        template = {}
+        template['cases'] = ' '.join([f'case {fct_name}:' for fct_name in self.fct_names])
+        template['vars']  = ' '.join([f'{t} {n};' for (t,n) in zip([e_to_c[t] for t in self.e_types], self.var_names)])
+        template['n_var'] = str(len(self.var_names))
+        template['e_var'] = ', '.join(self.e_types)
+        template['a_var'] = ', '.join([f'&{var_name}' for var_name in self.var_names])
+
+
+        template['calls'] = ''.join([f'\t\t\t\tcase {fct_name}:\tcblas_{fct_name}({", ".join(uncast(fct_name[0], self.var_names, self.e_types))}); break;\n' for fct_name in self.fct_names])
+        
+        return template
+
+    def __str__(self):
+        result = ''
+        result = result + "fcts\t:" + ' '.join(self.fct_names)
+        result = result + "\ne_types\t: " + ' '.join(self.e_types)
+        result = result + "\ne_names\t: " + ' '.join(self.var_names)
+        return result
+
+with open(input_name, "r") as f:
+    inputs = f.read().split('-')
+
+with open(output_name, 'w') as out:
+    for i in inputs:
+        b = blas_fct(i)
+        out.write(build_template(b.get_template()))
+        out.write('\n')

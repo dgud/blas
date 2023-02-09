@@ -1,0 +1,315 @@
+		case strsv: case dtrsv: case ctrsv: case ztrsv: {
+			int order; int transa; int uplo; int diag; int n; cste_c_binary a; int lda; c_binary x; int incx;
+
+			if(!(error = test_n_arg(narg, 9))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_diag, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+			                                     &order, &transa, &uplo, &diag, &n, &a, &lda, &x, &incx))
+			)
+			switch(hash_name){
+				case strsv:	cblas_strsv(order, transa, uplo, diag, n,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case dtrsv:	cblas_dtrsv(order, transa, uplo, diag, n,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case ctrsv:	cblas_ctrsv(order, transa, uplo, diag, n,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case ztrsv:	cblas_ztrsv(order, transa, uplo, diag, n,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case sger: case dger: case cgeru: case cgerc: case zgeru: case zgerc: {
+			int order; int m; int n; cste_c_binary alpha; cste_c_binary x; int incx; cste_c_binary y; int incy; c_binary a; int lda;
+
+			if(!(error = test_n_arg(narg, 10))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+			                                     &order, &m, &n, &alpha, &x, &incx, &y, &incy, &a, &lda))
+			)
+			switch(hash_name){
+				case sger:	cblas_sger(order, m, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+				case dger:	cblas_dger(order, m, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+				case cgeru:	cblas_cgeru(order, m, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+				case cgerc:	cblas_cgerc(order, m, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+				case zgeru:	cblas_zgeru(order, m, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+				case zgerc:	cblas_zgerc(order, m, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case sgemm: case dgemm: case cgemm: case cgemm3m: case zgemm: case zgemm3: {
+			int order; int transa; int transb; int m; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 14))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_transpose, e_int, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &transa, &transb, &m, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case sgemm:	cblas_sgemm(order, transa, transb, m, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case dgemm:	cblas_dgemm(order, transa, transb, m, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case cgemm:	cblas_cgemm(order, transa, transb, m, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case cgemm3m:	cblas_cgemm3m(order, transa, transb, m, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zgemm:	cblas_zgemm(order, transa, transb, m, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zgemm3:	cblas_zgemm3(order, transa, transb, m, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case stbmv: case dtbmv: case ctbmv: case ztbmv: {
+			int order; int transa; int uplo; int diag; int n; int k; cste_c_binary a; int lda; c_binary x; int incx;
+
+			if(!(error = test_n_arg(narg, 10))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_diag, e_int, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+			                                     &order, &transa, &uplo, &diag, &n, &k, &a, &lda, &x, &incx))
+			)
+			switch(hash_name){
+				case stbmv:	cblas_stbmv(order, transa, uplo, diag, n, k,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case dtbmv:	cblas_dtbmv(order, transa, uplo, diag, n, k,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case ctbmv:	cblas_ctbmv(order, transa, uplo, diag, n, k,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+				case ztbmv:	cblas_ztbmv(order, transa, uplo, diag, n, k,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case stbsv: case dtbsv: case ctbsv: case ztbsv: {
+			int order; int transa; int uplo; int diag; int n; int k; int lda; int incx; cste_c_binary a; c_binary x;
+
+			if(!(error = test_n_arg(narg, 10))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_diag, e_int, e_int, e_int, e_int, e_cste_ptr, e_ptr, e_end},
+			                                     &order, &transa, &uplo, &diag, &n, &k, &lda, &incx, &a, &x))
+			)
+			switch(hash_name){
+				case stbsv:	cblas_stbsv(order, transa, uplo, diag, n, k, lda, incx,  get_cste_ptr(a),  get_ptr(x)); break;
+				case dtbsv:	cblas_dtbsv(order, transa, uplo, diag, n, k, lda, incx,  get_cste_ptr(a),  get_ptr(x)); break;
+				case ctbsv:	cblas_ctbsv(order, transa, uplo, diag, n, k, lda, incx,  get_cste_ptr(a),  get_ptr(x)); break;
+				case ztbsv:	cblas_ztbsv(order, transa, uplo, diag, n, k, lda, incx,  get_cste_ptr(a),  get_ptr(x)); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case stpmv: case dtpmv: case ctpmv: case ztpmv: {
+			int order; int transa; int uplo; int diag; int n; cste_c_binary ap; c_binary x; int incx;
+
+			if(!(error = test_n_arg(narg, 8))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_diag, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &transa, &uplo, &diag, &n, &ap, &x, &incx))
+			)
+			switch(hash_name){
+				case stpmv:	cblas_stpmv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case dtpmv:	cblas_dtpmv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case ctpmv:	cblas_ctpmv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case ztpmv:	cblas_ztpmv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case stpsv: case dtpsv: case ctpsv: case ztpsv: {
+			int order; int transa; int uplo; int diag; int n; cste_c_binary ap; c_binary x; int incx;
+
+			if(!(error = test_n_arg(narg, 8))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_diag, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &transa, &uplo, &diag, &n, &ap, &x, &incx))
+			)
+			switch(hash_name){
+				case stpsv:	cblas_stpsv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case dtpsv:	cblas_dtpsv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case ctpsv:	cblas_ctpsv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+				case ztpsv:	cblas_ztpsv(order, transa, uplo, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case ssymv: case dsymv: case chemv: case zhemv: {
+			int order; int uplo; int n; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy;
+
+			if(!(error = test_n_arg(narg, 11))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &uplo, &n, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
+			)
+			switch(hash_name){
+				case ssymv:	cblas_ssymv(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  *(double*) get_cste_ptr(beta),  get_ptr(y), incy); break;
+				case dsymv:	cblas_dsymv(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  *(double*) get_cste_ptr(beta),  get_ptr(y), incy); break;
+				case chemv:	cblas_chemv(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
+				case zhemv:	cblas_zhemv(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case sspmv: case dspmv: {
+			int order; int trans; int uplo; int side; int diag; int n; cste_c_binary alpha; cste_c_binary ap; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy;
+
+			if(!(error = test_n_arg(narg, 13))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_side, e_diag, e_int, e_cste_ptr, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &trans, &uplo, &side, &diag, &n, &alpha, &ap, &x, &incx, &beta, &y, &incy))
+			)
+			switch(hash_name){
+				case sspmv:	cblas_sspmv(order, trans, uplo, side, diag, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx,  *(double*) get_cste_ptr(beta),  get_ptr(y), incy); break;
+				case dspmv:	cblas_dspmv(order, trans, uplo, side, diag, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx,  *(double*) get_cste_ptr(beta),  get_ptr(y), incy); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case sspr: case dspr: case chpr: case zhpr: {
+			int order; int uplo; int n; cste_c_binary alpha; cste_c_binary x; int incx; c_binary ap;
+
+			if(!(error = test_n_arg(narg, 7))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_ptr, e_end},
+			                                     &order, &uplo, &n, &alpha, &x, &incx, &ap))
+			)
+			switch(hash_name){
+				case sspr:	cblas_sspr(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_ptr(ap)); break;
+				case dspr:	cblas_dspr(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_ptr(ap)); break;
+				case chpr:	cblas_chpr(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_ptr(ap)); break;
+				case zhpr:	cblas_zhpr(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_ptr(ap)); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case sspr2: case dspr2: case chpr2: case zhpr2: {
+			int order; int uplo; int n; cste_c_binary alpha; cste_c_binary x; int incx; cste_c_binary y; int incy; c_binary ap;
+
+			if(!(error = test_n_arg(narg, 9))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_end},
+			                                     &order, &uplo, &n, &alpha, &x, &incx, &y, &incy, &ap))
+			)
+			switch(hash_name){
+				case sspr2:	cblas_sspr2(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(ap)); break;
+				case dspr2:	cblas_dspr2(order, uplo, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(ap)); break;
+				case chpr2:	cblas_chpr2(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(ap)); break;
+				case zhpr2:	cblas_zhpr2(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(ap)); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case chbmv: case zhbmv: {
+			int order; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy;
+
+			if(!(error = test_n_arg(narg, 12))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &uplo, &n, &k, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
+			)
+			switch(hash_name){
+				case chbmv:	cblas_chbmv(order, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
+				case zhbmv:	cblas_zhbmv(order, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case chpmv: case zhpmv: {
+			int order; int uplo; int n; cste_c_binary alpha; cste_c_binary ap; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy,;
+
+			if(!(error = test_n_arg(narg, 10))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &uplo, &n, &alpha, &ap, &x, &incx, &beta, &y, &incy,))
+			)
+			switch(hash_name){
+				case chpmv:	cblas_chpmv(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy,); break;
+				case zhpmv:	cblas_zhpmv(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy,); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case chemm: case zhemm: {
+			int order; int trans; int uplo; int side; int diag; int m; int n; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 15))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_side, e_diag, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &trans, &uplo, &side, &diag, &m, &n, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case chemm:	cblas_chemm(order, trans, uplo, side, diag, m, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zhemm:	cblas_zhemm(order, trans, uplo, side, diag, m, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case cherk: case zherk: {
+			int order; int trans; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 11))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &trans, &uplo, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case cherk:	cblas_cherk(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zherk:	cblas_zherk(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case cher2k: case zher2k: {
+			int order; int uplo; int trans; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 13))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &uplo, &trans, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case cher2k:	cblas_cher2k(order, uplo, trans, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zher2k:	cblas_zher2k(order, uplo, trans, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case ssymm: case dsymm: case csymm: case zsymm: {
+			int order; int side; int uplo; int m; int n; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 13))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_side, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &side, &uplo, &m, &n, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case ssymm:	cblas_ssymm(order, side, uplo, m, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case dsymm:	cblas_dsymm(order, side, uplo, m, n,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case csymm:	cblas_csymm(order, side, uplo, m, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zsymm:	cblas_zsymm(order, side, uplo, m, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case ssyrk: case dsyrk: case csyrk: case zsyrk: {
+			int order; int trans; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 11))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &trans, &uplo, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case ssyrk:	cblas_ssyrk(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case dsyrk:	cblas_dsyrk(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case csyrk:	cblas_csyrk(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zsyrk:	cblas_zsyrk(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+		case ssyr2k: case dsyr2k: case csyr2k: case zsyr2k: {
+			int order; int trans; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
+
+			if(!(error = test_n_arg(narg, 13))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+			                                     &order, &trans, &uplo, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+			)
+			switch(hash_name){
+				case ssyr2k:	cblas_ssyr2k(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case dsyr2k:	cblas_dsyr2k(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case csyr2k:	cblas_csyr2k(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+				case zsyr2k:	cblas_zsyr2k(order, trans, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
