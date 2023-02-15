@@ -32,6 +32,8 @@ typedef struct{
 } cste_c_binary;
 
 inline const void* get_cste_ptr(cste_c_binary cb){return (void*) cb.ptr + cb.offset;}
+float get_cste_float(cste_c_binary cb);
+double get_cste_double(cste_c_binary cb);
 int get_cste_binary(ErlNifEnv* env, const ERL_NIF_TERM term, cste_c_binary* result);
 int in_cste_bounds(int elem_size, int n_elem, int inc, cste_c_binary b);
 

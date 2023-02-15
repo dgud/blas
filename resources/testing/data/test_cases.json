@@ -1,0 +1,6 @@
+{
+    "saxpy": ["n_sd","alpha","x",1,"y", 1],
+    "daxpy": ["n_sd","alpha","x",1,"y", 1],
+    "caxpy": ["n_cz","alpha","x",1,"y", 1],
+    "zaxpy": ["n_cz","alpha","x",1,"y", 1]
+}

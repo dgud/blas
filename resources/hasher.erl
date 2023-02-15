@@ -14,7 +14,8 @@ sasum,dasum,scasum,dzasum,
 isamax,idamax,icamax,izamax,
 isamin,idamin, icamin, izamin,
 ismax,idmax,icmax,izmax,
-ismin,idmin, icmin, izmin,  
+ismin,idmin, icmin, izmin,
+ssum, dsum, dzsum, scsum,  
 
 % LEVEL 2 
 sgbmv, dgbmv, cgbmv, zgbmv,
@@ -47,6 +48,7 @@ chemm, zhemm,
 cherk, zherk, cher2k, zher2k,
 ssymm, dsymm, csymm, zsymm,
 
+ssyr, dsyr, ssyr2, dsyr2,
 ssyrk, dsyrk, csyrk, zsyrk,
 ssyr2k, dsyr2k, csyr2k, zsyr2k,
 strmm, dtrmm, ctrmm, ztrmm,

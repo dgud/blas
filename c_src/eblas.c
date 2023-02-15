@@ -143,6 +143,7 @@ int get_cste_binary(ErlNifEnv* env, const ERL_NIF_TERM term, cste_c_binary* resu
         result->size    = ebin.size;
         result->offset  = 0;
         result->ptr     = ebin.data;
+        result->type    = e_cste_ptr;
     }
     else{
         // Read a cbin.
@@ -151,18 +152,36 @@ int get_cste_binary(ErlNifEnv* env, const ERL_NIF_TERM term, cste_c_binary* resu
             result->size    = cbin.size;
             result->offset  = cbin.offset;
             result->ptr     = (const unsigned char*) cbin.ptr;
+            result->type    = e_ptr;
         }
         else{
             // Read a double.
             if(!enif_get_double(env, term, &result->tmp))
                 return 0;
 
+            debug_write("Read a double: %lf\n", &result->tmp);
+
             result->size    = 8;
             result->offset  = 0;
             result->ptr     = (const unsigned char*) &result->tmp;
+            result->type    = e_double;
         }
     }
     return 1;
+}
+
+double get_cste_double(cste_c_binary cb){
+    const void* ptr = get_cste_ptr(cb);
+    return *(double*) ptr;
+}
+
+float get_cste_float(cste_c_binary cb){
+    const void* ptr = get_cste_ptr(cb);
+    if(cb.type == e_double){
+        double val = get_cste_double(cb);
+        return (float) val;
+    }
+    return *(float*) ptr;
 }
 
 
@@ -262,7 +281,6 @@ ERL_NIF_TERM to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 }
 
 // UNWRAPPER
-
 // https://stackoverflow.com/questions/7666509/hash-function-for-string
 unsigned long hash(char *str){
     unsigned long hash = 5381;
@@ -291,10 +309,15 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
     int error = ERROR_NONE;
     narg--;
     elements++;
+
     unsigned long hash_name = hash(name);
+    
     size_in_bytes type = pick_size(hash_name);
+    if(type == no_bytes)
+        hash_name = blas_name_end;
+
     ERL_NIF_TERM result = 0;
-    //debug_write("%s=%lu\n", name, hash_name);
+
     switch(hash_name){
 
         case saxpy: case daxpy: case caxpy: case zaxpy: {
@@ -305,7 +328,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_cste_bounds(type, 1, 1, alpha)) && !(error = in_cste_bounds(type, n, incx, x))  && !(error = in_bounds(type, n, incy, y))
             )
              switch(hash_name){
-                case saxpy: cblas_saxpy(n, *(double*)get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
+                case saxpy: cblas_saxpy(n,  *(float*)get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
                 case daxpy: cblas_daxpy(n, *(double*)get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
                 case caxpy: cblas_caxpy(n,           get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
                 case zaxpy: cblas_zaxpy(n,           get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(y), incy); break;
@@ -356,11 +379,11 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_cste_bounds(type, 1, 1, alpha) ) && !(error = in_bounds(type, n, incx, x))
             )
             switch(hash_name){
-                case sscal:  cblas_sscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case sscal:  cblas_sscal(n,  *(float*) get_cste_ptr(alpha), get_ptr(x), incx); break;
                 case dscal:  cblas_dscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
                 case cscal:  cblas_cscal(n,            get_cste_ptr(alpha), get_ptr(x), incx); break;
                 case zscal:  cblas_zscal(n,            get_cste_ptr(alpha), get_ptr(x), incx); break;
-                case csscal: cblas_sscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
+                case csscal: cblas_sscal(n,  *(float*) get_cste_ptr(alpha), get_ptr(x), incx); break;
                 case zdscal: cblas_dscal(n, *(double*) get_cste_ptr(alpha), get_ptr(x), incx); break;
                 default: error = ERROR_NOT_FOUND; break;
             }
@@ -402,13 +425,14 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = translate(env, elements, (etypes[]) {e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_end}, &n, &b, &x, &incx, &y, &incy))
                 && !(error = in_cste_bounds(type, n, incx, x) ) && !(error = in_cste_bounds(type, n, incy, y))
             ){
-                double f_result  = cblas_sdsdot (n, *(double*) get_cste_ptr(b), get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &f_result);
+                double f_result  = cblas_sdsdot (n, *(float*) get_cste_ptr(b), get_cste_ptr(x), incx, get_cste_ptr(y), incy); set_cste_c_binary(&dot_result, e_double, (unsigned char*) &f_result);
                 result = cste_c_binary_to_term(env, dot_result);
             }
         break;}
 
         case snrm2: case dnrm2: case scnrm2: case dznrm2: case sasum: case dasum: case scasum: case dzasum: case isamax: case idamax: case icamax: case izamax:
-        case isamin : case idamin: case  icamin: case  izamin: case ismax: case idmax: case icmax: case izmax: case ismin: case idmin: case  icmin: case  izmin: {
+        case isamin : case idamin: case  icamin: case  izamin: case ismax: case idmax: case icmax: case izmax: case ismin: case idmin: case  icmin: case  izmin:
+        case ssum: case dsum: case scsum: case dzsum: {
             cste_c_binary u_result;
             double d_result;
             int i_result;
@@ -425,6 +449,11 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                     case scnrm2: d_result  = cblas_scnrm2(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
                     case dznrm2: d_result  = cblas_dznrm2(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
                     
+                    //case dsum:  d_result  = cblas_dsum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    //case ssum:  d_result  = cblas_ssum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    //case scsum: d_result  = cblas_scsum(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    //case dzsum: d_result  = cblas_dzsum(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
+                    
                     case dasum:  d_result  = cblas_dasum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
                     case sasum:  d_result  = cblas_sasum (n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
                     case scasum: d_result  = cblas_scasum(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_double, (unsigned char*) &d_result);  break;
@@ -440,15 +469,15 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                     case icamin: i_result  = cblas_icamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
                     case izamin: i_result  = cblas_izamin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
 
-                    case ismax: i_result  = cblas_ismax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case idmax: i_result  = cblas_idmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case icmax: i_result  = cblas_icmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case izmax: i_result  = cblas_izmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case ismax: i_result  = cblas_ismax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case idmax: i_result  = cblas_idmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case icmax: i_result  = cblas_icmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case izmax: i_result  = cblas_izmax(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
 
-                    case ismin: i_result  = cblas_ismin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case idmin: i_result  = cblas_idmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case icmin: i_result  = cblas_icmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
-                    case izmin: i_result  = cblas_izmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case ismin: i_result  = cblas_ismin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case idmin: i_result  = cblas_idmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case icmin: i_result  = cblas_icmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
+                    //case izmin: i_result  = cblas_izmin(n, get_cste_ptr(x), incx); set_cste_c_binary(&u_result, e_int, (unsigned char*) &i_result);  break;
 
                     default: error = ERROR_NOT_FOUND; break;
                 }
@@ -465,10 +494,10 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y))
             )
             switch(hash_name){
-                case srot:  cblas_srot(n, get_ptr(x),  incx, get_ptr(y), incy, *(float*)  get_cste_ptr(c), *(float*)  get_cste_ptr(s)); break;
-                case drot:  cblas_drot(n, get_ptr(x),  incx, get_ptr(y), incy, *(double*) get_cste_ptr(c), *(double*) get_cste_ptr(s)); break;
-                case csrot: cblas_csrot(n, get_ptr(x), incx, get_ptr(y), incy, *(float*)  get_cste_ptr(c), *(float*)  get_cste_ptr(s)); break;
-                case zdrot: cblas_zdrot(n, get_ptr(x), incx, get_ptr(y), incy, *(double*) get_cste_ptr(c), *(double*) get_cste_ptr(s)); break;
+                case srot:  cblas_srot(n, get_ptr(x),  incx, get_ptr(y), incy, get_cste_float(c), get_cste_float(s)); break;
+                case drot:  cblas_drot(n, get_ptr(x),  incx, get_ptr(y), incy, get_cste_double(c), get_cste_double(s)); break;
+                case csrot: cblas_csrot(n, get_ptr(x), incx, get_ptr(y), incy, get_cste_float(c), get_cste_float(s)); break;
+                case zdrot: cblas_zdrot(n, get_ptr(x), incx, get_ptr(y), incy, get_cste_double(c), get_cste_double(s)); break;
                 default: error = ERROR_NOT_FOUND; break;
             }
             
@@ -533,7 +562,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                                                         &layout, &trans, &m, &n, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
                 && !(error = in_cste_bounds(type, lda, layout==CblasColMajor?n:m, a)) && !(error = in_cste_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y)))
             switch(hash_name){
-                case sgemv: cblas_sgemv(layout, trans, m, n, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
+                case sgemv: cblas_sgemv(layout, trans, m, n,  *(float*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 case dgemv: cblas_dgemv(layout, trans, m, n, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 case cgemv: cblas_cgemv(layout, trans, m, n,           get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,           get_cste_ptr(beta), get_ptr(y), incy); break;
                 case zgemv: cblas_zgemv(layout, trans, m, n,           get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,           get_cste_ptr(beta), get_ptr(y), incy); break;
@@ -549,7 +578,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                                                         &layout, &trans, &m, &n, &kl, &ku, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
                 && !(error = in_cste_bounds(type, lda, layout==CblasColMajor?n:m, a)) &&!(error = in_cste_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y)))
             switch(hash_name){
-                case sgbmv: cblas_sgbmv(layout, trans, m, n, kl, ku, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
+                case sgbmv: cblas_sgbmv(layout, trans, m, n, kl, ku,  *(float*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 case dgbmv: cblas_dgbmv(layout, trans, m, n, kl, ku, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 case cgbmv: cblas_cgbmv(layout, trans, m, n, kl, ku,           get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,           get_cste_ptr(beta), get_ptr(y), incy); break;
                 case zgbmv: cblas_zgbmv(layout, trans, m, n, kl, ku,           get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,           get_cste_ptr(beta), get_ptr(y), incy); break;
@@ -565,7 +594,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                                                         &layout, &uplo, &m, &n, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
                 && !(error = in_cste_bounds(type, lda, layout==CblasColMajor?n:m, a)) &&!(error = in_cste_bounds(type, n, incx, x)) && !(error = in_bounds(type, n, incy, y)))
             switch(hash_name){
-                case ssbmv: cblas_ssbmv(layout, uplo, m, n, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
+                case ssbmv: cblas_ssbmv(layout, uplo, m, n, *(float*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 case dsbmv: cblas_dsbmv(layout, uplo, m, n, *(double*)get_cste_ptr(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, *(double*)get_cste_ptr(beta), get_ptr(y), incy); break;
                 default: error = ERROR_NOT_FOUND; break;
             }
@@ -842,6 +871,40 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			}
 		break;}
 
+        case ssyr: case dsyr: case cher: case zher: {
+            int order; int uplo; int n; cste_c_binary alpha; cste_c_binary x; int incx; c_binary a; int lda;
+
+			if(!(error = test_n_arg(narg, 8))
+			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+			                                                  &order, &uplo, &n, &alpha, &x, &incx, &a, &lda))
+			)
+			switch(hash_name){
+                case ssyr:	cblas_ssyr(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(a), lda); break;
+                case dsyr:	cblas_dsyr(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(a), lda); break;
+                case cher:	cblas_cher(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(a), lda); break;
+			    case zher:	cblas_zher(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_ptr(a), lda); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
+        case ssyr2: case dsyr2: case cher2: case zher2: {
+            int order; int uplo; int n; cste_c_binary alpha; cste_c_binary x; int incx; cste_c_binary y; int incy; c_binary a; int lda;
+
+			if(!(error = test_n_arg(narg, 10))
+			&& !(error = translate(env, elements, (etypes[]) {e_int, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
+			                                                  &order, &uplo, &n, &alpha, &x, &incx, &y, &incy, &a, &lda))
+			)
+			switch(hash_name){
+                case ssyr2:	cblas_ssyr2(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+			    case dsyr2:	cblas_dsyr2(order, uplo, n, *(double*) get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+                case cher2:	cblas_cher2(order, uplo, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+			    case zher2:	cblas_zher2(order, uplo, n,            get_cste_ptr(alpha), get_cste_ptr(x), incx, get_cste_ptr(y), incy, get_ptr(a), lda); break;
+
+				default: error = ERROR_NOT_FOUND; break;
+			}
+		break;}
+
 		case cherk: case zherk: {
 			int order; int uplo; int trans; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary beta; c_binary c; int ldc;
 
@@ -850,7 +913,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			                                     &order, &uplo, &trans, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
 			)
 			switch(hash_name){
-				case cherk:	cblas_cherk(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
+                case cherk:	cblas_cherk(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
 				case zherk:	cblas_zherk(order, trans, uplo, n, k,  *(double*) get_cste_ptr(alpha),  get_cste_ptr(a), lda,  *(double*) get_cste_ptr(beta),  get_ptr(c), ldc); break;
 
 				default: error = ERROR_NOT_FOUND; break;
