@@ -180,6 +180,7 @@ size_in_bytes pick_size(long unsigned hash){
         case snrm2: case sasum: case isamax:case isamin:case ismax:case ismin:
         case srotm: case sdsdot: case dsdot: case ssum:
         case strmv: case strmm: case strsv: case strsm:
+        case sgemm:
             type = s_bytes;  
         break;   
 
@@ -188,6 +189,7 @@ size_in_bytes pick_size(long unsigned hash){
         case dnrm2: case dasum: case idamax: case idamin:case idmax:case idmin: 
         case dsbmv: case dsum: case csrot:
         case dtrmv: case dtrsv: case dtrmm: case dtrsm:
+        case dgemm:
             type = d_bytes;  
         break;
 
@@ -195,6 +197,7 @@ size_in_bytes pick_size(long unsigned hash){
         case scnrm2:case scasum:case icamax:case icamin:case icmax: case icmin: 
         case cgerc: case cgbmv: case cswap: case csscal: case cdotc:
         case ctrmv: case ctrsv: case ctrmm: case ctrsm: case scsum:
+        case cgemm: case cgemm3m:
             type = c_bytes;  
         break;
 
@@ -202,6 +205,7 @@ size_in_bytes pick_size(long unsigned hash){
         case dznrm2:case dzasum:case izamax:case izamin:case izmax: case izmin: 
         case zrotg: case zgemv: case zgeru: case zgerc: case zgbmv: case dzsum:
         case ztrmv: case ztrsv: case ztrmm: case ztrsm: case zdscal: case zdrot:
+        case zgemm: case zgemm3m:
             type = z_bytes;  
         break;
         

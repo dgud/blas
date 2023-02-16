@@ -1,4 +1,4 @@
--module(blas2_SUITE).
+-module(blas1_SUITE).
 -include_lib("eunit/include/eunit.hrl").
 
 -record(blas, {size, vars, expected}).
@@ -12,7 +12,7 @@ build_call(#blas{size=S, vars=Call}, Vars)->
                 if 
                     is_list(Value) ->
                         blas:new(chain:ltb(S, Value));
-                    V == n andalso (S==c orelse S==z) -> 
+                    (V == n) andalso (S==c orelse S==z) -> 
                         floor(Value / 2);
                     true ->
                         Value
@@ -29,14 +29,39 @@ compare(#blas{size=S, vars=Vars}, Lval, Rval)->
     if is_list(Rval)->
         Llist = chain:btl(S, if is_tuple(Lval) -> blas:to_bin(Lval); true-> Lval end),
     
-        io:format("Result: ~p ~p ~p~n", [lists:nth(1, Vars),Llist,  Rval]),
+        io:format("Result: l ~p ~p ~p~n", [lists:nth(1, Vars), Llist,  Rval]),
         Llist ==  Rval;
     true->
-        io:format("Result: ~p ~p ~p~n", [lists:nth(1, Vars), Lval,  Rval]),
+        io:format("Result: t ~p ~p ~p~n", [lists:nth(1, Vars), Lval,  Rval]),
         Lval == Rval
     end.
 
-run_test()->
+run(AllVars, Fcts)->
+    lists:all(
+        fun(Blas=#blas{vars=BlasVars, expected=Expected})->
+            Call = build_call(Blas, AllVars),
+            io:format("Call: ~p~n", [Call]),
+            Out = blas:run(list_to_tuple(Call)),
+            Result = orddict:from_list(lists:zip([out] ++ BlasVars, [Out] ++ Call)),
+
+            Passed = lists:all(
+                fun({Arg, Val})->
+                    compare(Blas, orddict:fetch(Arg, Result), Val)
+                end,
+                Expected
+            ),
+
+            if not Passed ->
+                nok = lists:nth(1, BlasVars);
+            true ->
+                true
+            end
+        end,
+        Fcts
+    ).
+
+
+level1_test()->
     AllVars = orddict:from_list([
         {n, 4},
         {x, [1,-2,3,-4]},
@@ -115,25 +140,4 @@ run_test()->
 
     ],
 
-    lists:all(
-        fun(Blas=#blas{vars=BlasVars, expected=Expected})->
-            Call = build_call(Blas, AllVars),
-            io:format("Call: ~p~n", [Call]),
-            Out = blas:run(list_to_tuple(Call)),
-            Result = orddict:from_list(lists:zip([out] ++ BlasVars, [Out] ++ Call)),
-
-            Passed = lists:all(
-                fun({Arg, Val})->
-                    compare(Blas, orddict:fetch(Arg, Result), Val)
-                end,
-                Expected
-            ),
-
-            if not Passed ->
-                nok = lists:nth(1, BlasVars);
-            true ->
-                true
-            end
-        end,
-        Fcts
-    ).
+    run(AllVars, Fcts).
