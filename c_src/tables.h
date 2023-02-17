@@ -180,7 +180,7 @@ size_in_bytes pick_size(long unsigned hash){
         case snrm2: case sasum: case isamax:case isamin:case ismax:case ismin:
         case srotm: case sdsdot: case dsdot: case ssum:
         case strmv: case strmm: case strsv: case strsm:
-        case sgemm:
+        case sgemm: case sspmv: case sspr: case sspr2:
             type = s_bytes;  
         break;   
 
@@ -189,7 +189,7 @@ size_in_bytes pick_size(long unsigned hash){
         case dnrm2: case dasum: case idamax: case idamin:case idmax:case idmin: 
         case dsbmv: case dsum: case csrot:
         case dtrmv: case dtrsv: case dtrmm: case dtrsm:
-        case dgemm:
+        case dgemm: case dspmv: case dspr: case dspr2:
             type = d_bytes;  
         break;
 

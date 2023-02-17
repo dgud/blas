@@ -20,7 +20,7 @@ build_call(Signature, #instance{size = Size, name = Name}, Vars)->
                         1
                 end,
                 Value_list = element(1, lists:split(round(length(Value)*Split_ratio), Value)),
-                io:format("Result: ~p~n", [Value_list]),
+                %io:format("Result: ~p~n", [Value_list]),
                 blas:new(chain:ltb(Size, Value_list));
 
             {ok, Value} when (Arg_name == n) andalso ?is_complex(Size) ->
@@ -50,7 +50,7 @@ compare({instance, Size, Name, _}, Lval, Rval)->
 run(Var_table, #blas{ signature = Signature, instances = Instances})->
     Test_instance = fun (Instance=#instance{expected = Expected}) ->
         Call = build_call(Signature, Instance, Var_table),
-        io:format("Calling ~p~n", [Call]),
+        %io:format("Calling ~p~n", [Call]),
         Out  = blas:run(list_to_tuple(Call)),
         State= orddict:from_list(lists:zip([out, name] ++ Signature, [Out] ++ Call)),
         true = lists:all(
@@ -118,3 +118,78 @@ ge_test()->
     ],
 
     lists:all(fun (Blas) -> run(Vars, Blas) end, Fcts).
+
+
+sp_test()->
+     Vars = orddict:from_list([
+        {alpha, [2,0]},
+        {beta,  [3,1]},
+        {uplo, blasUpper}, 
+        {order, blasRowMajor},
+        {n, 3},
+        {a, [1, 3, 2, 
+                3, 9,
+                    2]},
+
+        {x, [1, 2, -1]},
+        {y, [0, -4, 1]}
+     ]),
+
+      Fcts = [
+        % spmv
+        #blas{
+            signature = [ order, uplo, n, alpha, a, x, inc, beta, y, inc],
+            instances = [
+              #instance{size = s, name = sspmv,   expected = [{y, [10, -12, 39]}]},
+              #instance{size = d, name = dspmv,   expected = [{y, [10, -12, 39]}]}
+            ]
+        },
+
+        #blas{
+            signature = [ order, uplo, n, alpha, x, inc, a],
+            instances = [
+              #instance{size = s, name = sspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]},
+              #instance{size = d, name = dspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]}
+            ]
+        }, 
+
+         #blas{
+            signature = [ order, uplo, n, alpha, x, inc, y, inc, a],
+            instances = [
+              #instance{size = s, name = sspr2,   expected = [{a, [1, -5, 4, -29, 21, -2]}]},
+              #instance{size = d, name = dspr2,   expected = [{a, [1, -5, 4, -29, 21, -2]}]}
+            ]
+        }
+      ],
+
+      
+    lists:all(fun (Blas) -> run(Vars, Blas) end, Fcts). 
+
+hp_test()->
+     Vars = orddict:from_list([
+        {alpha, [2,0]},
+        {beta,  [3,1]},
+        {uplo, blasUpper}, 
+        {order, blasRowMajor},
+        {n, 3},
+        {a, [1, 3, 2, 
+                3, 9,
+                    2]},
+
+        {x, [1, 2, -1]},
+        {y, [0, -4, 1]}
+     ]),
+
+      Fcts = [
+        %hpr
+        #blas{
+            signature = [ order, uplo, n, alpha, x, inc, a],
+            instances = [
+              #instance{size = s, name = sspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]},
+              #instance{size = d, name = dspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]}
+            ]
+        }, 
+      ],
+
+      
+    lists:all(fun (Blas) -> run(Vars, Blas) end, Fcts). 
