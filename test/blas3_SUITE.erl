@@ -188,7 +188,7 @@ hp_test()->
               #instance{size = s, name = sspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]},
               #instance{size = d, name = dspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]}
             ]
-        }, 
+        }
       ],
 
       
