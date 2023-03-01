@@ -1,0 +1,24 @@
+
+
+// strmm performs a matrix-matrix operation of the form C := alpha*A*B + beta*C
+// where A is a triangular matrix stored in column-major format.
+
+// Inputs:
+int m = 3; // number of rows of matrix A and C
+int n = 4; // number of columns of matrix B and C
+float alpha = 1.0; // scalar multiplier
+float beta = 0.0; // scalar multiplier
+
+// Matrix A
+float A[m*m] = {1.0, 0.0, 0.0, 2.0, 3.0, 0.0, 4.0, 5.0, 6.0};
+
+// Matrix B
+float B[m*n] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0};
+
+C = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+// Function call:
+cblas_strmm(CblasColMajor, CblasLeft, CblasUpper, CblasNoTrans, CblasNonUnit, m, n, alpha, A, m, B, m, beta, C, m);
+
+// Expected output:
+float C[m*n] = {1.0, 2.0, 3.0, 4.0, 10.0, 16.0, 22.0, 28.0, 37.0, 52.0, 67.0, 82.0};

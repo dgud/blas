@@ -1,0 +1,14 @@
+
+
+// srotg is a function from the CBLAS library that computes the Givens rotation, which is a plane rotation used to eliminate one element of a vector.
+
+// Inputs:
+float a = 1.0f;
+float b = 2.0f;
+
+// Function call:
+cblas_srotg(&a, &b, &c, &s);
+
+// Expected outputs:
+float c = 0.447214f;
+float s = -2.23606f;

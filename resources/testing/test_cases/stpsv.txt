@@ -1,0 +1,18 @@
+
+
+// stpsv is a function from the CBLAS library that solves a system of linear equations A*x = b, where A is a triangular matrix stored in packed format.
+
+// Inputs:
+int order = CblasRowMajor; // Specifies the order of the matrix A
+int uplo = CblasUpper; // Specifies whether the matrix A is upper or lower triangular
+int trans = CblasNoTrans; // Specifies whether the matrix A is transposed or not
+int diag = CblasNonUnit; // Specifies whether the matrix A is unit triangular or not
+int n = 3; // Number of rows/columns of the matrix A
+float A[6] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0}; // Matrix A stored in packed format
+float x[3] = {1.0, 2.0, 3.0}; // Vector x
+
+// Function call:
+cblas_stpsv(order, uplo, trans, diag, n, A, x, 1);
+
+// Expected output:
+float x[3] = {-1.0, 0.5, 1.0}; // Vector x after solving the system of linear equations A*x = b

@@ -1,0 +1,22 @@
+
+
+// SSYMM performs one of the matrix-matrix operations
+// C := alpha*A*B + beta*C
+
+// Inputs:
+int m = 3; // number of rows of matrix A and C
+int n = 4; // number of columns of matrix B and C
+float alpha = 2.0; // scalar multiplier for A*B
+float A[m*m] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0}; // matrix A
+int lda = m; // leading dimension of A
+float B[m*n] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0}; // matrix B
+int ldb = m; // leading dimension of B
+float beta = 3.0; // scalar multiplier for C
+float C[m*n] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0}; // matrix C
+int ldc = m; // leading dimension of C
+
+// Function call:
+cblas_ssymm(CblasRowMajor, CblasLeft, CblasUpper, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+
+// Expected output:
+float C[m*n] = {37.0, 44.0, 51.0, 58.0, 74.0, 88.0, 102.0, 116.0, 111.0, 132.0, 153.0, 174.0};

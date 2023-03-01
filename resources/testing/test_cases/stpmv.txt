@@ -1,0 +1,18 @@
+
+
+// stpmv performs a matrix-vector product with a triangular packed matrix and updates a vector.
+
+// Inputs:
+int order = CblasRowMajor;
+int uplo = CblasUpper;
+int trans = CblasNoTrans;
+int diag = CblasNonUnit;
+int n = 3;
+float ap[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+float x[] = {1.0, 2.0, 3.0};
+
+// Function call:
+cblas_stpmv(order, uplo, trans, diag, n, ap, x, 1);
+
+// Expected output:
+float x[] = {1.0, 7.0, 22.0};

@@ -1,0 +1,18 @@
+
+
+// strsm stands for "solve triangular system of linear equations with multiple right-hand sides".
+// It solves the system of linear equations A*X = B, where A is a triangular matrix.
+
+// Inputs:
+// A is a triangular matrix of size m x m stored in column-major order in array A.
+// B is a matrix of size m x n stored in column-major order in array B.
+// Side is an enum value that specifies whether A is an upper or lower triangular matrix.
+// Uplo is an enum value that specifies whether A is an upper or lower triangular matrix.
+// Diag is an enum value that specifies whether A is unit triangular or not.
+
+// Function call:
+cblas_strsm(CblasColMajor, Side, Uplo, CblasNoTrans, Diag, m, n, alpha, A, m, B, n);
+
+// Expected outputs:
+// B is an m x n matrix stored in column-major order in array B, containing the solution X.
+// The elements of B are overwritten with the solution X.

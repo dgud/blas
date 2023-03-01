@@ -1,0 +1,19 @@
+
+
+// stbsv computes the solution to a system of linear equations A * X = B, where A is a triangular band matrix.
+
+// Inputs:
+int order = 3;
+int uplo = CblasUpper;
+int trans = CblasNoTrans;
+int diag = CblasNonUnit;
+int n = 3;
+int k = 1;
+float A[9] = {1.0, 2.0, 3.0, 0.0, 4.0, 5.0, 0.0, 0.0, 6.0};
+float B[3] = {7.0, 8.0, 9.0};
+
+// Function call:
+cblas_stbsv(order, uplo, trans, diag, n, k, A, n, B, 1);
+
+// Expected output:
+float B[3] = {1.0, -2.0, 3.0};

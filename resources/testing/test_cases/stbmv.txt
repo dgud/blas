@@ -1,0 +1,23 @@
+
+
+// stbmv performs a matrix-vector operation defined as y = A*x + y, where A is a symmetric band matrix.
+
+// Inputs:
+int order = CblasRowMajor; // Row major order
+int uplo = CblasUpper; // Upper triangular matrix
+int trans = CblasNoTrans; // No transpose
+int diag = CblasNonUnit; // Non-unit diagonal
+int n = 5; // Matrix size
+int k = 2; // Number of superdiagonals
+float A[15] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0}; // Symmetric band matrix
+int lda = 3; // Leading dimension of A
+float x[5] = {1.0, 2.0, 3.0, 4.0, 5.0}; // Vector x
+int incx = 1; // Increment of x
+float y[5] = {1.0, 2.0, 3.0, 4.0, 5.0}; // Vector y
+int incy = 1; // Increment of y
+
+// Function call:
+cblas_stbmv(order, uplo, trans, diag, n, k, A, lda, x, incx, y, incy);
+
+// Expected output:
+float y[5] = {7.0, 18.0, 29.0, 40.0, 51.0};

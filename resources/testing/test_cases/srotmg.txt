@@ -1,0 +1,20 @@
+
+
+// srotmg is a function from the CBLAS library that generates modified Givens rotation matrices.
+
+// Inputs:
+float d1 = 1.0f;
+float d2 = 2.0f;
+float x1 = 3.0f;
+float y1 = 4.0f;
+float param[5] = {0.0f};
+
+// Function call:
+cblas_srotmg(d1, d2, x1, y1, param);
+
+// Expected outputs:
+float d1_out = 0.5f;
+float d2_out = 4.0f;
+float x1_out = 0.75f;
+float y1_out = 0.0f;
+float param_out[5] = {0.5f, 0.0f, 0.75f, 0.0f, 0.0f};

@@ -1,0 +1,16 @@
+
+
+// SSYR performs the symmetric rank 1 operation
+// A := alpha*x*x**T + A
+
+// Inputs:
+int N = 3; // size of matrix A
+float alpha = 2.0; // scalar
+float x[3] = {1.0, 2.0, 3.0}; // vector
+float A[9] = {1.0, 2.0, 3.0,2.0, 4.0, 5.0,3.0, 5.0, 6.0}; // matrix
+
+// Function call:
+cblas_ssyr(CblasRowMajor, CblasUpper, N, alpha, x, 1, A, N);
+
+// Expected output:
+float A[9] = {5.0, 10.0, 15.0,2.0,  8.0, 14.0,3.0,  5.0,  6.0}; // matrix

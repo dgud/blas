@@ -1,0 +1,18 @@
+
+
+// strsv is a function from the CBLAS library that solves a system of linear equations with a triangular matrix.
+
+// Inputs:
+int order = CblasRowMajor; // Specifies the order of the matrix
+int uplo = CblasUpper; // Specifies whether the matrix is upper or lower triangular
+int trans = CblasNoTrans; // Specifies whether the matrix is transposed
+int diag = CblasNonUnit; // Specifies whether the diagonal elements are unit
+int n = 3; // Number of rows/columns of the matrix
+float A[9] = {1.0, 2.0, 3.0, 0.0, 4.0, 5.0, 0.0, 0.0, 6.0}; // Matrix A
+float x[3] = {1.0, 2.0, 3.0}; // Vector x
+
+// Function call:
+cblas_strsv(order, uplo, trans, diag, n, A, x, 1);
+
+// Expected output:
+float x[3] = {-0.166667, 0.833333, 0.5};

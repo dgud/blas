@@ -1,0 +1,18 @@
+
+
+// SSYR2K performs a symmetric rank-2k update of a symmetric matrix C:
+// C := alpha*A*B^T + conjg( alpha )*B*A^T + beta*C
+
+// Inputs:
+int N = 3; // Dimension of matrix C
+float alpha = 1.0f; // Scalar multiplier
+float beta = 0.5; // Scalar multiplier
+float A[N*N] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f}; // Matrix A
+float B[N*N] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}; // Matrix B
+float C[N*N] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}; // Matrix C
+
+// Function call:
+cblas_ssyr2k(CblasRowMajor, CblasUpper, CblasNoTrans, N, N, alpha, A, N, B, N, beta, C, N);
+
+// Expected output:
+float C[N*N] = {2.0f, 2.0f, 3.0f, 2.0f, 6.0f, 8.0f, 3.0f, 8.0f, 18.0f}; // Matrix C

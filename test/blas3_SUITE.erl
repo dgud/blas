@@ -165,31 +165,53 @@ sp_test()->
       
     lists:all(fun (Blas) -> run(Vars, Blas) end, Fcts). 
 
-hp_test()->
+tr_test()->
      Vars = orddict:from_list([
-        {alpha, [2,0]},
-        {beta,  [3,1]},
-        {uplo, blasUpper}, 
         {order, blasRowMajor},
-        {n, 3},
-        {a, [1, 3, 2, 
-                3, 9,
-                    2]},
-
-        {x, [1, 2, -1]},
-        {y, [0, -4, 1]}
+        {side, blasLeft},
+        {uplo, blasUpper},
+        {trans, blasNoTrans},
+        {diag, blasNonUnit},
+        {n, 4},
+        {alpha, [1,-1]},
+        {a, [1,0,3,0, 0,5,0,7, 0,0,9,0, 0,0,0,0]},
+        {aa, [1,0,0,1, 0,0,1,0]},
+        {b, [1,2,3,4, 0,1,6,7, 0,0,1,9, 0,0,0,1]},
+        {x, [-1,2,-3,4]},
+        {xx, [1,0,1,0]},
+        {y, [1,2,3,4]},
+        {a_trsm, [1,0,0,0, 0,1,0,0, 0,0,0,0, 0,0,0,1]}
      ]),
 
       Fcts = [
-        %hpr
         #blas{
-            signature = [ order, uplo, n, alpha, x, inc, a],
+            signature = [ order, uplo, trans, diag, n, a, n, x, inc],
             instances = [
-              #instance{size = s, name = sspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]},
-              #instance{size = d, name = dspr,   expected = [{a, [3, 7, 0, 11, 5, 4]}]}
+                
+                % trmv
+                #instance{size = s, name = strmv, expected = [{x, [-10,38,-27,0]}]},
+                #instance{size = d, name = dtrmv, expected = [{x, [-10,38,-27,0]}]},
+                #instance{size = c, name = ctrmv, expected = [{x, [-10,14,-28,-21]}]},
+                #instance{size = z, name = ztrmv, expected = [{x, [-10,14,-28,-21]}]}
+            ]
+        },
+        #blas{
+            signature = [ order, uplo, trans, diag, n, b, n, y, inc],
+            instances = [
+                 % trsv
+                #instance{size = s, name = strsv, expected = [{y, [-260, 172, -33, 4]}]},
+                #instance{size = d, name = dtrsv, expected = [{y, [-260, 172, -33, 4]}]}
+            ]
+        },
+         #blas{
+            signature = [ order, uplo, trans, diag, n, aa, n, xx, inc],
+            instances = [
+                 % trsv
+                #instance{size = c, name = ctrsv, expected = [{xx, [1,-1,1,0]}]},
+                #instance{size = z, name = ztrsv, expected = [{xx, [1,-1,1,0]}]}
             ]
         }
       ],
-
       
     lists:all(fun (Blas) -> run(Vars, Blas) end, Fcts). 
+

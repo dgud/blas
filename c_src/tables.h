@@ -83,7 +83,7 @@ typedef enum BLAS_NAMES {
     ztrmv=210736528648,
     strsv=210728227399,
     dtrsv=210710438584,
-    ctrsv=6385128901,
+    ctrsv=210709252663,
     ztrsv=210736528846,
     strsm=210728227390,
     dtrsm=210710438575,
@@ -116,7 +116,7 @@ typedef enum BLAS_NAMES {
     ctpsv=210709250485,
     ztpsv=210736526668,
     ssymv=210728198887, 
-    dsymv=6385170085,  // incorrect
+    dsymv=210710410072,
     chemv=210708807064,
     zhemv=210736083247,
     sspmv=210728189086,
@@ -178,26 +178,37 @@ size_in_bytes pick_size(long unsigned hash){
         case saxpy: case scopy: case sswap: case sscal: case sdot: case srot: 
         case srotmg:case sgemv: case sger:  case sgbmv: case ssbmv:case srotg: 
         case snrm2: case sasum: case isamax:case isamin:case ismax:case ismin:
-        case srotm: case sdsdot: case dsdot: case ssum:
+        case srotm: case sdsdot: case ssum:
         case strmv: case strmm: case strsv: case strsm:
         case sgemm: case sspmv: case sspr: case sspr2:
+        case stpsv: case stpmv: case stbsv: case stbmv: case scasum: case scsum: case scnrm2:
+        case ssymv: case ssymm: case ssyrk: case ssyr2k:
+        case ssyr: case ssyr2: case dsdot:
             type = s_bytes;  
         break;   
 
         case daxpy: case dcopy: case dswap:  case dscal: case ddot: case drot:
         case drotg: case drotm: case drotmg: case dgemv: case dger: case dgbmv: 
         case dnrm2: case dasum: case idamax: case idamin:case idmax:case idmin: 
-        case dsbmv: case dsum: case csrot:
+        case dsbmv: case dsum: 
         case dtrmv: case dtrsv: case dtrmm: case dtrsm:
         case dgemm: case dspmv: case dspr: case dspr2:
+        case dtpsv: case dtpmv: case dtbsv: case dtbmv:
+        case dsymv: case dsymm: case dsyrk:
+        case dsyr2k:case dsyr: case dsyr2:
             type = d_bytes;  
         break;
 
         case caxpy: case ccopy: case cscal: case cdotu: case cgemv: case cgeru: 
-        case scnrm2:case scasum:case icamax:case icamin:case icmax: case icmin: 
+        case icamax:case icamin:case icmax: case icmin: 
         case cgerc: case cgbmv: case cswap: case csscal: case cdotc:
-        case ctrmv: case ctrsv: case ctrmm: case ctrsm: case scsum:
-        case cgemm: case cgemm3m:
+        case ctrmv: case ctrsv: case ctrmm: case ctrsm: 
+        case cgemm: case cgemm3m: case csrot:
+        case ctpsv: case ctpmv: case ctbsv: case ctbmv:
+        case crotg:case cher2:
+        case chemv:case chpr:case chpr2:case chbmv:
+        case chpmv:case cher:case chemm:case cherk:
+        case cher2k:case csymm:case csyrk:case csyr2k:
             type = c_bytes;  
         break;
 
@@ -205,7 +216,14 @@ size_in_bytes pick_size(long unsigned hash){
         case dznrm2:case dzasum:case izamax:case izamin:case izmax: case izmin: 
         case zrotg: case zgemv: case zgeru: case zgerc: case zgbmv: case dzsum:
         case ztrmv: case ztrsv: case ztrmm: case ztrsm: case zdscal: case zdrot:
-        case zgemm: case zgemm3m:
+        case zgemm: case zgemm3m: case ztbmv:
+        case ztpsv: case ztbsv:
+        case ztpmv:
+        case zhemv:case zhpr:case zhpr2:
+        case zhbmv:case zhpmv:case zher:
+        case zhemm:case zherk:case zher2k:
+        case zsymm:case zsyrk:case zsyr2k:
+        case zher2:
             type = z_bytes;  
         break;
         

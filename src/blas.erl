@@ -1,6 +1,6 @@
 -module(blas).
 
--export([run/1, run/2]).
+-export([run/1, run/2, hash/1]).
 -export([new/1, shift/2, copy/2, to_bin/1, to_bin/2]).
 
 
@@ -48,7 +48,6 @@ bin_nif(_,_)->
     nif_not_loaded.
 
 
-
 run(Wrapped)->
     dirty_unwrapper(Wrapped).
 
@@ -61,4 +60,5 @@ run(Wrapped, DirtyTest) when is_tuple(Wrapped) ->
 
 dirty_unwrapper(_) -> nif_not_loaded.
 clean_unwrapper(_) -> nif_not_loaded.
+hash(_)->nif_not_loaded.
 

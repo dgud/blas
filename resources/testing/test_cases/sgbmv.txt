@@ -1,0 +1,20 @@
+
+
+// sgbmv performs a matrix-vector operation defined as y := alpha*A*x + beta*y, where alpha and beta are scalars, x and y are vectors and A is an m by n band matrix, with kl sub-diagonals and ku super-diagonals.
+
+// Inputs
+int m = 5; // number of rows of matrix A
+int n = 4; // number of columns of matrix A
+int kl = 2; // number of sub-diagonals of matrix A
+int ku = 1; // number of super-diagonals of matrix A
+float alpha = 2.0; // scalar
+float beta = 0.5; // scalar
+float A[15] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0}; // matrix A
+float x[4] = {1.0, 2.0, 3.0, 4.0}; // vector x
+float y[5] = {5.0, 6.0, 7.0, 8.0, 9.0}; // vector y
+
+// Function call
+cblas_sgbmv(CblasRowMajor, CblasNoTrans, m, n, kl, ku, alpha, A, kl+ku+1, x, 1, beta, y, 1);
+
+// Expected output
+float y[5] = {37.0, 54.0, 71.0, 88.0, 105.0}; // vector y

@@ -60,6 +60,7 @@ ERL_NIF_TERM to_binary(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv);
 unsigned long hash(char *str);
 int load_ebw(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info);
 ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv);
+ERL_NIF_TERM hash_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv);
 
 
 
