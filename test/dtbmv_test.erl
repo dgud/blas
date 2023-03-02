@@ -9,4 +9,4 @@ dtbmv_test()->
     X = blas:new(chain:ltb(d, [1,1,1,1])),
     Incx = 1,
     blas:run({dtbmv, blasRowMajor, blasUpper, blasNoTrans, blasUnit, N, K, A, Lda, X, Incx}),
-    [2, 3, 4, 1] =:= chain:btl(d, blas:to_bin(X)).
+    [2.0, 3.0, 4.0, 1.0] = chain:btl(d, blas:to_bin(X)).

@@ -7,4 +7,4 @@ dsymv_test()->
     X = blas:new(chain:ltb(d, [1, 2, 3])),
     Y = blas:new(chain:ltb(d, [0, 0, 0])),
     blas:run({dsymv, blasRowMajor, blasUpper, N, 1.0, A, N, X, 1, 0.0, Y, 1}),
-    [14, 25, 31] =:= chain:btl(d, blas:to_bin(Y)).
+    [14.0, 25.0, 31.0] = chain:btl(d, blas:to_bin(Y)).

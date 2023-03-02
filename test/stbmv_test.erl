@@ -9,4 +9,4 @@ stbmv_test()->
     X = blas:new(chain:ltb(s, [1,1,1,1])),
     Incx = 1,
     blas:run({stbmv, blasRowMajor, blasUpper, blasNoTrans, blasUnit, N, K, A, Lda, X, Incx}),
-    [2, 3, 4, 1] =:= chain:btl(s, blas:to_bin(X)).
+    [2.0, 3.0, 4.0, 1.0] = chain:btl(s, blas:to_bin(X)).

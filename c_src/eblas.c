@@ -879,7 +879,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 		case chemm: case zhemm: {
 			int order; int side; int uplo; int m; int n; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
 
-			if(!(error = test_n_arg(narg, 15))
+			if(!(error = test_n_arg(narg, 13))
 			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_side, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
 			                                     &order,  &side, &uplo, &m, &n, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
 			)
@@ -933,8 +933,8 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			                                     &order, &uplo, &trans, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
 			)
 			switch(hash_name){
-                case cherk:	cblas_cherk(order, trans, uplo, n, k, get_cste_float(alpha),  get_cste_ptr(a), lda, get_cste_float(beta),  get_ptr(c), ldc); break;
-				case zherk:	cblas_zherk(order, trans, uplo, n, k, get_cste_double(alpha),  get_cste_ptr(a), lda, get_cste_double(beta),  get_ptr(c), ldc); break;
+                case cherk:	cblas_cherk(order, uplo, trans, n, k, get_cste_float(alpha),  get_cste_ptr(a), lda, get_cste_float(beta),  get_ptr(c), ldc); break;
+				case zherk:	cblas_zherk(order, uplo, trans, n, k, get_cste_double(alpha),  get_cste_ptr(a), lda, get_cste_double(beta),  get_ptr(c), ldc); break;
 
 				default: error = ERROR_NOT_FOUND; break;
 			}

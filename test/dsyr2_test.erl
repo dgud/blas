@@ -5,7 +5,6 @@ dsyr2_test()->
     N = 3,
     X = blas:new(chain:ltb(d, [1.0, 2.0, 3.0])),
     Y = blas:new(chain:ltb(d, [4.0, 5.0, 6.0])),
-    A = blas:new(chain:ltb(d, [1.0, 2.0, 3.0, 2.0, 4.0, 5.0, 3.0, 5.0, 6.0])),
+    A = blas:new(chain:ltb(d, [1.0, 2.0, 3.0, 0.0, 4.0, 5.0, 0.0, 0.0, 6.0])),
     blas:run({dsyr2, blasRowMajor, blasUpper, N, 2.0, X, 1, Y, 1, A, N}),
-    [129, 130, 131, 0, 132, 133, 0, 0, 134] =:= chain:btl(d, blas:to_bin(A)).
-
+    [17.0, 28.0, 39.0, 0.0, 44.0, 59.0, 0.0, 0.0, 78.0] = chain:btl(d, blas:to_bin(A)).

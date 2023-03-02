@@ -11,4 +11,4 @@ dgbmv_test()->
     Y = blas:new(chain:ltb(d, [5.0, 6.0, 7.0, 8.0])),
     blas:run({dgbmv, blasRowMajor, blasNoTrans, M, N, Kl, Ku, 1.0, A, Kl+Ku+1, X, 1, 0.0, Y, 1}),
     %io:format("~w\n", chain:btl(d, blas:to_bin(Y))),
-    [5, 38, 101, 109] =:= chain:btl(d, blas:to_bin(Y)).
+    [5.0, 38.0, 101.0, 109.0] = chain:btl(d, blas:to_bin(Y)).
