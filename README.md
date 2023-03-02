@@ -39,7 +39,7 @@ ok = blas:run(
 [1.0,2.0,3.0] = blas:to_list(s, X).
 ```
 
-Datatypes tables
+Datatype conversion tables
 -----
 
 ```
