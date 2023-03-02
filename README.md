@@ -1,91 +1,123 @@
 blas
 =====
 
-This project is the continuation of ddgud's BLAS wrapper. It features scheduling control (execution in dirty/clean nifs), as well as type checking, and array overflow detection (to avoid sigsev related crashes).
-
+This project is a continuation of ddgud's BLAS wrapper. It features scheduling control (execution in dirty/clean nifs), as well as type checking, and array overflow detection (to avoid sigsev related crashes).
 
 Usage
 -----
+```erlang
+blas:run(Tuple);        % Execute on dirty scheduler
+blas:run(Tuple, dirty); % Execute on dirty scheduler.
+blas:run(Tuple, clean); % Execute on usual scheduler.
+```
+Tuple contains, in sequence, a BLAS function name (represented as an atom), followed by its arguments in Erlang representation.
 
-sasum example:
+Examples
+-----
+
+caxpy: single complex numbers, complex numbers: alpha*x + y
 
 ```erlang
-Bin = chain:ltb(s, [1,2,4,3]),  
-% ltb(T, L):
-% transforms list L into a binary,
-% using encoding T: s->single, d->double,
-%                   c->single complex
-%                   z->single double
+Alpha = blas:ltb(c, [1,0]),
+X     = blas:ltb(c, [1,2,  2,3,  3,1]),
+Y     = blas:new(c, [1,1,  0,0,  1,2]),
+ok    = blas:run({caxpy, 3, Alpha, X, 1, Y, 1}),
 
-Ptr = blas:new(Bin),           
-% new(Binary):
-% creates a mutable c binary, of initial
-% content Bin.
-
-Sum = blas:run({sasum, 4, Ptr, 1 }).
-% run({Blas_fct_name, arg0, arg1,...}).
-% Executes blas Blas_fct_name with given arguments.
+io:format("Result: ~p~n", [blas:to_list(c, Y)]).
 ```
 
-caxpy example:
+stpmv: single real numbers, triangular packed matrix, Matrix*Vector operation.
 
 ```erlang
-% List representation of X,Y,A
-[X,Y,A]   =  [[1,2,1,3,1,4],[3,2,3,4,3,6],[1,0]],
-% Binary representation of X,Y,A
-[Xb,Yb,Ab] = lists:map(fun(L)->chain:ltb(c, L) end, [X,Y,A]),
-% C_Binary representation of X,Y,A
-[Xc,Yc,Ac] = lists:map(fun blas:new/1, [Xb,Yb,Ab]),
-
-ok    = blas:run({caxpy, 3, Ac, Xc, 1, Yc, 1}),
-
-% Reset Yc
-blas:copy(Yb, Yc),
-ok    = blas:run({caxpy, 3, Ab, Xb, 1, Yc, 1}).
+N  = 3,
+A  = blas:new(s, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+X  = blas:new(s, [-0.25,-0.125,0.5]),
+ok = blas:run(
+    {stpmv, blasRowMajor, blasUpper, blasNoTrans, blasNonUnit, N, A, X, 1},
+    clean
+),
+[1.0,2.0,3.0] = blas:to_list(s, X).
 ```
 
-Available
-----
+Datatypes tables
+-----
 
-_axpy,_copy,_swap,_scal,_dot,_nrm2,_asum,i_amax,_rot,_rotg,_rotm,_rotmg
+```
+    enums       cblas[value]           blas[value]
 
-TODO
-----
+    numbers
+                (const)int             int
+                void*                  c_binary
+                const float            double; binary; c_binary
+                const double           double; binary; c_binary
+                const void*            binary; c_binary
 
-MISSING LEVEL 1  
-amin,  
+```
 
-LEVEL2 TODO  
-sgbmv, dgbmv, cgbmv, zgbmv,
-ssbmv,dsbmv,
-stbmv, dtbmv, ctbmv,ztbmv,
-stbsv, dtbsv, ctbsv, ztbsv,
-stpmv, dtpmv, ctpmv, ztpmv,
-stpsv, dtpsv, ctpsv, ztpsv,
-ssymv, dymv,
-chemv, zhemv,
-sspmv, dspmv,
-sspr, dspr,
-chpr, zhpr,
-sspr2, dspr2,
-chpr2, zhpr2,
-chbmv, zhbmv,
-chpmv, zhpmv,
-sgemv, dgemv, cgemv, zgemv,
+For example, taking stpmv's cblas signature:
 
-sger, dger, cgeru, cgerc, zgeru, zgerc,
-cher, zher, cher2, zher2, 
-strmv, dtrmv, ctrmv, ztrmv,
-strsv, dtrsv, ctsv, ztrsv  
+```c
+void cblas_stpmv(OPENBLAS_CONST enum CBLAS_ORDER order, OPENBLAS_CONST enum CBLAS_UPLO Uplo, OPENBLAS_CONST enum CBLAS_TRANSPOSE TransA, OPENBLAS_CONST enum CBLAS_DIAG Diag,
+                 OPENBLAS_CONST blasint N, OPENBLAS_CONST float *Ap, float *X, OPENBLAS_CONST blasint incX);
+```
+The arguments can be represented as such:
+```erlang
+% enums
+Order  = blasRowMajor  || blasColMajor
+Uplo   = blasUpper     || blasLower
+Transa = blasNoTrans   || blasTrans
+Diag   = blasNonUnit   || blasUnit
 
+% int
+N      = 3 
+incX   = 1
 
-LEVEL 3 TODO  
-sgemm, dgemm, cgemm, cgemm3m, zgemm, zgemm3m,
-chemm, zhemm,
-cherk, zherk, cher2k, zher2k,
-ssymm, dsymm, csymm, zsymm,
+% const float*
+A      = blas:new(s, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]); % c_binary, a mutable binary
+A_2    = blas:ltb(s, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]); % binary
 
-ssyrk, dsyrk, csyrk, zsyrk,
-ssyr2k, dsyr2k, csyr2k, zsyr2k,
-strmm, dtrmm, ctrmm, ztrmm,
-strsm, dtrsm, ctrsm, ztrsm  
+% float*
+X      = blas:new(s, [-0.25,-0.125,0.5]);             % c_binary
+```
+
+Creating c_binaries
+-----
+Since BLAS functions operate in place, c_binaries representing mutable arrays are needed. They can be created as such: 
+```erlang
+C_binary = blas:new(Binary).
+% Binary is an erlang binary.
+C_binary = blas:new(Type, List).
+% List is a list of numbers.
+% Type is used to encode the binary, and is one of: 
+% s -> single precision
+% d -> double precision
+% c -> single complex numbers: List is of even size
+% Z -> double complex numbers: List is of even size
+```
+
+Reading c_binaries
+-----
+The content of c_binaries can be retrieved as either a list of elements, or a constant binary.
+Retrieving a list is done as such:
+```erlang
+C_binary = blas:to_list(Type, C_binary).
+% Binary is a c_binary created using blas:new.
+% Type is used to decode the binary, and is one of: 
+% s -> single precision
+% d -> double precision
+% c -> single complex numbers (equivalent to s)
+% Z -> double complex numbers (equivqlent to d)
+```
+Retrieving a binary is done as such:
+```erlang
+Binary = blas:to_bin(C_binary).
+% Binary is a c_binary created using blas:new.
+```
+
+Warnings
+-----
+Array overflow is checked over vectors. Howver, it is not verified in the following cases:
+- usage of matrices
+- c_binaries/binaries used to represent single complex numbers (parameter alpha, beta)
+
+As such, this library might crash due to a SIGSEV fault, over incorrect arguments.
