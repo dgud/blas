@@ -10,6 +10,7 @@ typedef enum types {e_int, e_uint, e_float, e_double, e_ptr, e_cste_ptr, e_float
 int translate(ErlNifEnv* env, const ERL_NIF_TERM* terms, const etypes* format, ...);
 
 
+
 // C binary definition
 // --------------------------------------------
 
@@ -22,6 +23,10 @@ typedef struct{
 inline void* get_ptr(c_binary cb){return (void*) cb.ptr + cb.offset;}
 int get_c_binary(ErlNifEnv* env, const ERL_NIF_TERM term, c_binary* result);
 int in_bounds(int elem_size, int n_elem, int inc, c_binary b);
+
+inline int leading_dim(int order, int n_rows, int n_cols){
+    return order == CblasRowMajor? n_rows:n_cols;
+}
 
 typedef struct{
     unsigned int size;

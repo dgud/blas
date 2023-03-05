@@ -118,6 +118,5 @@ Warnings
 -----
 Array overflow is checked over vectors. Howver, it is not verified in the following cases:
 - usage of matrices
-- c_binaries/binaries used to represent single complex numbers (parameter alpha, beta)
 
 As such, this library might crash due to a SIGSEV fault, over incorrect arguments.
