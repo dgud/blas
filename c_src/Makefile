@@ -13,7 +13,7 @@ else ifeq ($(UNAME_SYS), FreeBSD)
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 else ifeq ($(UNAME_SYS), Linux)
 	CC ?= gcc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
 endif
 
 $(C_SRC_OUTPUT): *.c

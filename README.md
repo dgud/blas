@@ -1,7 +1,7 @@
 blas
 =====
 
-This project is a continuation of ddgud's BLAS wrapper. It features scheduling control (execution in dirty/clean nifs), as well as type checking, and array overflow detection (to avoid sigsev related crashes).
+This project is a continuation of ddgud's BLAS wrapper. It features scheduling control (execution in dirty/clean nifs), as well as type checking, and array overflow detection (to avoid sigsev related crashes). It is written on top of openblas; using another cblas implementation will require modifying linking options in c_src/Makefile, and possibly include options in file c_src/eblas.h.
 
 Usage
 -----

@@ -1,6 +1,5 @@
 #include "eblas.h"
 #include "string.h"
-#include <cblas.h>
 #include <complex.h>
 #include "string.h"
 #include "tables.h"
