@@ -1,29 +1,18 @@
-BLAS for erlang
-===============
 
-blas is an erlang nif binding to BLAS, Basic Linear Algebra
-Subprograms.
+THIS REPO IS DEAD and will NOT be updated
+=========================================
 
-Blas subroutines are a de facto standard API for linear
-algebra libraries and routines.
+The erlang implementation of BLAS have been re-written and moved.
 
-Currently only supports the erlang native floats i.e.
-the 64b floats.
+SEE: https://github.com/erlef/blas
 
-Requirements
-------------
+/Dan
 
-Needs a blas library to link against.
+This was an old attempt, of a first rough implementation.
 
+Interruptable/dirty scheduler nifs, range tests in the nif,
+Makefiles/configure, tests and documentation needs more work.
 
-Status
-------
-
-First rough implementation, interruptable/dirty scheduler nifs, range tests in the
-nif, Makefiles/configure, tests and documentation needs more work.
-
-Would also be nice to have support for sparse data and LAPACK.
-
-Currently only limited tested with ATLAS on Ubuntu-14.04 (libatlas-dev package)
+Was only limited tested with ATLAS on Ubuntu-14.04 (libatlas-dev package)
 
 
