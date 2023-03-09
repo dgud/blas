@@ -24,8 +24,17 @@ inline void* get_ptr(c_binary cb){return (void*) cb.ptr + cb.offset;}
 int get_c_binary(ErlNifEnv* env, const ERL_NIF_TERM term, c_binary* result);
 int in_bounds(int elem_size, int n_elem, int inc, c_binary b);
 
-inline int leading_dim(int order, int n_rows, int n_cols){
-    return order == CblasRowMajor? n_rows:n_cols;
+inline int leading_dim(int order, int trans, int n_rows, int n_cols){
+    
+    if(order == CblasRowMajor){
+        return trans==CblasNoTrans? n_cols:n_rows;
+    }
+    
+    if(order == CblasColMajor){
+        return trans==CblasNoTrans? n_rows:n_cols;
+    }
+
+    return -1;
 }
 
 typedef struct{

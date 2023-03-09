@@ -586,7 +586,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_bounds(type, n, incy, y))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
                 && !(error = in_cste_bounds(type, 1, 1, beta))
-                && !(error = in_cste_bounds(type, leading_dim(layout, m, n), lda, a))
+                && !(error = in_cste_bounds(type, leading_dim(layout, trans, m, n), lda, a))
             ){
                 switch(hash_name){
                     case sgemv: cblas_sgemv(layout, trans, m, n,  get_cste_float(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,  get_cste_float(beta), get_ptr(y), incy); break;
@@ -610,6 +610,8 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_bounds(type, n, incy, y))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
                 && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, lda, n, a))
+
             ){
                 switch(hash_name){
                     case sgbmv: cblas_sgbmv(layout, trans, m, n, kl, ku,  get_cste_float(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx,  get_cste_float(beta), get_ptr(y), incy); break;
@@ -633,6 +635,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_bounds(type, n, incy, y))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
                 && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, lda, n, a))
             ){
                 switch(hash_name){
                     case ssbmv: cblas_ssbmv(layout, uplo, m, n, get_cste_float(alpha), get_cste_ptr(a), lda, get_cste_ptr(x), incx, get_cste_float(beta), get_ptr(y), incy); break;
@@ -650,8 +653,9 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
             if( !(error = test_n_arg(narg, 9))
                 && ! (error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_diag, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
                                                         &order, &uplo, &transa, &diag, &n, &a, &lda, &x, &incx))
-                &&!(error = in_bounds(type, n, incx, x)))
-            {
+                &&!(error = in_bounds(type, n, incx, x))
+                && !(error = in_cste_bounds(type, lda, n, a))
+            ){
                 switch(hash_name){
                     case strmv: cblas_strmv(order, uplo, transa, diag, n, get_cste_ptr(a), lda, get_ptr(x), incx); break;
                     case dtrmv: cblas_dtrmv(order, uplo, transa, diag, n, get_cste_ptr(a), lda, get_ptr(x), incx); break;
@@ -673,6 +677,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_diag, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
 			                                     &order, &uplo, &transa, &diag, &n, &a, &lda, &x, &incx))
             && !(error = in_bounds(type, n, incx, x))
+            && !(error = in_cste_bounds(type, lda, n, a))
 			)
             {
                 switch(hash_name){
@@ -695,6 +700,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = translate(env, elements, (etypes[]) {e_layout, e_side, e_uplo, e_transpose, e_diag, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_ptr, e_int, e_end},
                                                     &order, &side, &uplo, &transa, &diag, &m, &n, &alpha, &a, &lda, &b, &ldb))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = in_cste_bounds(type, lda, side == CblasLeft? m:n, a))
 			){
                 switch(hash_name){
                     case strmm:	cblas_strmm(order, side, uplo, transa, diag, m, n,  get_cste_float(alpha), get_cste_ptr(a), lda,  get_ptr(b), ldb); break;
@@ -719,7 +725,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 && !(error = in_cste_bounds(type, n, incx, x))
                 && !(error = in_cste_bounds(type, n, incy, y))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
-                && !(error = in_cste_bounds(type, leading_dim(layout, m, n), lda, a))
+                && !(error = in_bounds(type, leading_dim(order, CblasNoTrans, m, n), lda, a))
 			){
                 switch(hash_name){
                     case sger:	cblas_sger(order, m, n,  get_cste_float(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(a), lda); break;
@@ -740,10 +746,13 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			int order; int transa; int transb; int m; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary b; int ldb; cste_c_binary beta; c_binary c; int ldc;
 
 			if(!(error = test_n_arg(narg, 14))
-			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_transpose, e_int, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
-			                                     &order, &transa, &transb, &m, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
-			&& !(error = in_cste_bounds(type, 1, 1, alpha))
-            && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = translate(env, elements, (etypes[]) {e_layout, e_transpose, e_transpose, e_int, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+                                                    &order, &transa, &transb, &m, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
+                && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, lda, leading_dim(order, transa, m, n), a))
+                && !(error = in_cste_bounds(type, ldb, leading_dim(order, transb, m, n), b))
+                && !(error = in_bounds(type, ldc, leading_dim(order, CblasNoTrans, m, n), c))
             ){
 			switch(hash_name){
 				case sgemm:	  cblas_sgemm(  order, transa, transb, m, n, k,  get_cste_float(alpha),   get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_float(beta),  get_ptr(c), ldc); break;
@@ -767,6 +776,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			    && !(error = translate(env, elements, (etypes[]) {e_layout,  e_uplo, e_transpose,  e_diag, e_int, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
 			                                     &order, &uplo, &transa, &diag, &n, &k, &a, &lda, &x, &incx))
                 && !(error = in_bounds(type, n, incx, x))
+                && !(error = in_cste_bounds(type, lda, n, a))
 			){
                 switch(hash_name){
                     case stbmv:	cblas_stbmv(order, uplo, transa, diag, n, k,  get_cste_ptr(a), lda,  get_ptr(x), incx); break;
@@ -788,6 +798,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_diag, e_int, e_int, e_cste_ptr, e_int, e_ptr, e_int, e_end},
 			                                     &order, &uplo, &transa, &diag, &n, &k, &a, &lda, &x, &incx))
             && !(error = in_bounds(type, n, incx, x))
+            && !(error = in_cste_bounds(type, lda, n, a))
 			){
                 switch(hash_name){
                     case stbsv:	cblas_stbsv(order, uplo, transa, diag, n, k, get_cste_ptr(a), lda, get_ptr(x), incx); break;
@@ -809,7 +820,8 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			&& !(error = translate(env, elements, (etypes[]) {e_layout,  e_uplo, e_transpose, e_diag, e_int, e_cste_ptr, e_ptr, e_int, e_end},
 			                                     &order, &uplo, &transa, &diag, &n, &ap, &x, &incx))
             && !(error = in_bounds(type, n, incx, x))
-			){
+            && !(error = in_cste_bounds(type, (n*(n+1))/2, 1, ap)
+            )){
                 switch(hash_name){
                     case stpmv:	cblas_stpmv(order,  uplo, transa, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
                     case dtpmv:	cblas_dtpmv(order,  uplo, transa, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
@@ -830,7 +842,8 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_diag, e_int, e_cste_ptr, e_ptr, e_int, e_end},
 			                                     &order, &uplo, &transa, &diag, &n, &ap, &x, &incx))
             && !(error = in_bounds(type, n, incx, x))
-			){
+            && !(error = in_cste_bounds(type, (n*(n+1))/2, 1, ap)
+            )){
                 switch(hash_name){
                     case stpsv:	cblas_stpsv(order, uplo, transa, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
                     case dtpsv:	cblas_dtpsv(order, uplo, transa, diag, n,  get_cste_ptr(ap),  get_ptr(x), incx); break;
@@ -855,6 +868,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
                 &&  !(error = in_bounds(type, n, incy, y))
                 && !(error = in_cste_bounds(type, 1, 1, alpha))
                 && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, lda, n, a))
 			){
                 switch(hash_name){
                     case ssymv:	cblas_ssymv(order, uplo, n, get_cste_double(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx, get_cste_double(beta),  get_ptr(y), incy); break;
@@ -881,6 +895,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
             && !(error = in_bounds(type, n, incx, y))
             && !(error = in_cste_bounds(type, 1, 1, alpha))
             && !(error = in_cste_bounds(type, 1, 1, beta))
+            && !(error = in_cste_bounds(type, (n*(n+1))/2, 1, ap))
             ){
                 switch(hash_name){
                     case sspmv:	cblas_sspmv(order, uplo, n, get_cste_float(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx, get_cste_float(beta),  get_ptr(y), incy); break;
@@ -901,6 +916,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			                                     &order, &uplo, &n, &alpha, &x, &incx, &ap))
             && !(error = in_cste_bounds(type, n, incx, x))
             && !(error = in_cste_bounds(type, 1, 1, alpha))
+            && !(error = in_bounds(type, (n*(n+1))/2, 1, ap))
 			){
                 switch(hash_name){
                     case sspr:	cblas_sspr(order, uplo, n, get_cste_float(alpha),  get_cste_ptr(x), incx,  get_ptr(ap)); break;
@@ -919,11 +935,12 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			int order; int uplo; int n; cste_c_binary alpha; cste_c_binary x; int incx; cste_c_binary y; int incy; c_binary ap;
 
 			if(!(error = test_n_arg(narg, 9))
-			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_end},
-			                                     &order, &uplo, &n, &alpha, &x, &incx, &y, &incy, &ap))
-            && !(error = in_cste_bounds(type, n, incx, x))
-            && !(error = in_cste_bounds(type, n, incy, y))
-            && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_ptr, e_end},
+                                                    &order, &uplo, &n, &alpha, &x, &incx, &y, &incy, &ap))
+                && !(error = in_cste_bounds(type, n, incx, x))
+                && !(error = in_cste_bounds(type, n, incy, y))
+                && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = in_bounds(type, (n*(n+1))/2, 1, ap))
 			){
                 switch(hash_name){
                     case sspr2:	cblas_sspr2(order, uplo, n, get_cste_float(alpha),  get_cste_ptr(x), incx,  get_cste_ptr(y), incy,  get_ptr(ap)); break;
@@ -942,12 +959,13 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			int order; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary x; int incx; cste_c_binary beta; c_binary y; int incy;
 
 			if(!(error = test_n_arg(narg, 12))
-			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
-			                                     &order, &uplo, &n, &k, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
-            && !(error = in_cste_bounds(type, n, incx, x))
-            && !(error = in_bounds(type, n, incy, y))
-            && !(error = in_cste_bounds(type, 1, 1, alpha))
-            && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+                                                    &order, &uplo, &n, &k, &alpha, &a, &lda, &x, &incx, &beta, &y, &incy))
+                && !(error = in_cste_bounds(type, n, incx, x))
+                && !(error = in_bounds(type, n, incy, y))
+                && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, lda, n, a))
 			){
                 switch(hash_name){
                     case chbmv:	cblas_chbmv(order, uplo, n, k,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
@@ -970,6 +988,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
             && !(error = in_bounds(type, n, incy, y))
             && !(error = in_cste_bounds(type, 1, 1, alpha))
             && !(error = in_cste_bounds(type, 1, 1, beta))
+            && !(error = in_cste_bounds(type, (n*(n+1))/2, 1, ap))
 			){
                 switch(hash_name){
                     case chpmv:	cblas_chpmv(order, uplo, n,  get_cste_ptr(alpha),  get_cste_ptr(ap),  get_cste_ptr(x), incx,  get_cste_ptr(beta),  get_ptr(y), incy); break;
@@ -990,6 +1009,7 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			                                     &order,  &side, &uplo, &m, &n, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
 			&& !(error = in_cste_bounds(type, 1, 1, alpha))
             && !(error = in_cste_bounds(type, 1, 1, beta))
+            && !(error = in_cste_bounds(type, lda, side==CblasLeft?m:n, a))
             ){
                 switch(hash_name){
                     case chemm:	cblas_chemm(order, side, uplo, m, n,  get_cste_ptr(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb,  get_cste_ptr(beta),  get_ptr(c), ldc); break;
@@ -1110,10 +1130,12 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			int order; int trans; int uplo; int n; int k; cste_c_binary alpha; cste_c_binary a; int lda; cste_c_binary beta; c_binary c; int ldc;
 
 			if(!(error = test_n_arg(narg, 11))
-			&& !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
-			                                     &order, &uplo, &trans, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
-			&& !(error = in_cste_bounds(type, 1, 1, alpha))
-            && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = translate(env, elements, (etypes[]) {e_layout, e_uplo, e_transpose, e_int, e_int, e_cste_ptr, e_cste_ptr, e_int, e_cste_ptr, e_ptr, e_int, e_end},
+                                                    &order, &uplo, &trans, &n, &k, &alpha, &a, &lda, &beta, &c, &ldc))
+                && !(error = in_cste_bounds(type, 1, 1, alpha))
+                && !(error = in_cste_bounds(type, 1, 1, beta))
+                && !(error = in_cste_bounds(type, leading_dim(order, trans, n, k), lda, a))
+                && !(error = in_cste_bounds(type, n, ldc, a))
             ){
                 switch(hash_name){
                     case ssyrk:	cblas_ssyrk(order, uplo, trans,  n, k, get_cste_float(alpha),  get_cste_ptr(a), lda, get_cste_float(beta),  get_ptr(c), ldc); break;
@@ -1136,6 +1158,9 @@ ERL_NIF_TERM unwrapper(ErlNifEnv* env, int argc, const ERL_NIF_TERM* argv){
 			                                     &order, &trans, &uplo, &n, &k, &alpha, &a, &lda, &b, &ldb, &beta, &c, &ldc))
 			&& !(error = in_cste_bounds(type, 1, 1, alpha))
             && !(error = in_cste_bounds(type, 1, 1, beta))
+            && !(error = in_cste_bounds(type, leading_dim(order, trans, k, n), lda, a))
+            && !(error = in_cste_bounds(type, leading_dim(order, trans, k, n), lda, a))
+            && !(error = in_cste_bounds(type, n, ldc, a))
             ){
                 switch(hash_name){
                     case ssyr2k:	cblas_ssyr2k(order, trans, uplo, n, k, get_cste_float(alpha),  get_cste_ptr(a), lda,  get_cste_ptr(b), ldb, get_cste_float(beta),  get_ptr(c), ldc); break;

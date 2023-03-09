@@ -113,10 +113,3 @@ Retrieving a binary is done as such:
 Binary = blas:to_bin(C_binary).
 % Binary is a c_binary created using blas:new.
 ```
-
-Warnings
------
-Array overflow is checked over vectors. Howver, it is not verified in the following cases:
-- usage of matrices
-
-As such, this library might crash due to a SIGSEV fault, over incorrect arguments.
